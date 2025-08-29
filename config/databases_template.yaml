@@ -1,0 +1,71 @@
+# Database connection configuration
+databases:
+  line_a:
+    type: postgresql
+    host: 192.168.1.10
+    port: 5432
+    database: production_line_a
+    username: production_reader
+    password_ref: line_a_password
+    table: measurements
+    
+  line_b:
+    type: mysql
+    host: 192.168.1.11
+    port: 3306
+    database: production_line_b
+    username: mysql_reader
+    password_ref: line_b_password
+    table: measurements
+
+# Data combination settings
+combination:
+  unique_identifier: TraceCode      # Column used for deduplication
+  timestamp_column: timestamp       # Column used for latest-wins strategy
+  merge_strategy: latest_wins       # or 'first_occurrence'
+  production_line_column: production_line
+
+# Analysis configuration
+analysis:
+  outlier_method: iqr               # or 'zscore'
+  outlier_factor: 1.5               # IQR multiplier
+  decimal_precision: 4              # Decimal places in output
+  default_capability_threshold: 1.33
+
+# Data processing settings
+data_processing:
+  date_formats:
+    - "%Y-%m-%d"
+    - "%Y-%m-%d %H:%M:%S"
+    - "%m/%d/%Y"
+  numeric_tolerance: 0.01
+  missing_value_strategy: drop      # or 'fill_mean', 'fill_median', 'fill_mode'
+
+# Filter configuration
+filters:
+  default_date_range_days: 30       # 0 or -1 for all data, positive for days
+  case_sensitive_filters: false
+  filter_combination: and           # or 'or'
+
+# Output formatting
+output:
+  thousands_separator: ","
+  decimal_separator: "."
+  date_display_format: "%Y-%m-%d %H:%M:%S"
+
+# Quality thresholds
+quality:
+  stable_process_threshold: 10      # % relative std dev
+  unstable_process_threshold: 25    # % relative std dev
+  outlier_warning_threshold: 1.0    # % of data
+  outlier_critical_threshold: 5.0   # % of data
+  cpk_warning_threshold: 1.0
+  cpk_critical_threshold: 0.67
+
+# Database defaults
+database_defaults:
+  connection_timeout: 30
+  query_timeout: 300
+  max_retries: 3
+  retry_delay: 5
+

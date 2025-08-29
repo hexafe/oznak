@@ -1,0 +1,25 @@
+databases:
+  linea:
+    type: mysql
+    host: 192.168.1.10
+    port: 3306
+    database: linea
+    username: user
+    password_ref: linea_password
+    table: linea_historydb
+
+  lineb:
+    type: postgresql
+    host: 192.168.1.11
+    port: 5432
+    database: lineb
+    username: user
+    password_ref: lineb_password
+    table: lineb_historydb
+
+combination:
+  unique_identifier: TraceCode
+  timestamp_column: TimeStamp
+  merge_strategy: latest_wins
+  production_line_column: production_line
+

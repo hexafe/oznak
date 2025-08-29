@@ -1,0 +1,19 @@
+oznak/
+|-- oznak.py
+|-- core/
+|   |-- cli.py
+|   |-- session.py
+|   |-- module_manager.py
+|-- modules/
+|   |-- db_connector.py
+|   |-- file_loader.py
+|   |-- analyzer.py
+|   |-- reporter.py
+|-- interfaces/
+|   |-- module_interface.py
+|-- config/
+|   |-- databases.yaml
+|   |-- passwords.yaml
+|-- data/
+|-- requirements.txt
+
