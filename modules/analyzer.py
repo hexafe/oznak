@@ -1,4 +1,9 @@
-"""Statistical analyzer module for performing data analysis on production data"""
+"""Statistical analyzer module for performing data analysis on production data
+
+This module provides comprehensive statistical analysis capabilities
+including basic statistics quality analysis process capability calculations
+and data insights generation
+"""
 
 import numpy as np
 import pandas as pd
@@ -37,7 +42,7 @@ def _analyze(args: dict) -> dict:
         current_source = session.get_current_source()
         
         if not current_source:
-            return {'error': 'No data source selected. Use "use" command first'}
+            return {'error': 'No data source selected. Use "use" command first.'}
         
         df = _load_actual_data(current_source)
         
@@ -326,7 +331,7 @@ def _calculate_cpk( np.ndarray, usl: float, lsl: float) -> float:
 
 
 def _calculate_cp( np.ndarray, usl: float, lsl: float) -> float:
-    """Calculate process capability.
+    """Calculate process capability
     
     Args:
          Array of data values

@@ -1,29 +1,35 @@
-"""Command-line interface for oznak"""
+"""Command-line interface for the Oznak application
+
+This module implements the command-line interface for Oznak
+It provides user-friendly commands for data management analysis
+and reporting operations
+"""
 
 import click
+import pandas as pd
 from core.module_manager import ModuleManager
 from core.session import SessionManager
 
 
 @click.group()
-@click.version_option(version='0.0.1:P')
-def cli():
-    """Oznak - production data analysis system"""
+@click.version_option(version='1.0.0')
+def cli() -> None:
+    """Oznak - Multi-Database Production Data Analysis System"""
     pass
 
 
 @cli.command()
-def setup():
-    """Setup oznak config file"""
+def setup() -> None:
+    """Setup Oznak configuration files"""
     import os
     import shutil
-
+    
     config_dir = 'config'
     if not os.path.exists(config_dir):
         os.makedirs(config_dir)
-
+    
     template_files = {
-            'databases_template.yaml': """# Database connection configuration
+        'databases_template.yaml': """# Database connection configuration
 databases:
   line_a:
     type: postgresql
@@ -49,6 +55,7 @@ combination:
   timestamp_column: timestamp       # Column used for latest-wins strategy
   merge_strategy: latest_wins       # or 'first_occurrence'
   production_line_column: production_line
+  product_name_column: RefName       # Column containing product names
 
 # Analysis configuration
 analysis:
@@ -108,49 +115,61 @@ passwords:
         if not os.path.exists(template_path):
             with open(template_path, 'w') as f:
                 f.write(content)
-
+    
     user_files = {
         'databases.yaml': 'databases_template.yaml',
         'passwords.yaml': 'passwords_template.yaml'
     }
-
+    
     for user_file, template_file in user_files.items():
         user_path = os.path.join(config_dir, user_file)
         template_path = os.path.join(config_dir, template_file)
-
+        
         if not os.path.exists(user_path) and os.path.exists(template_path):
             shutil.copy2(template_path, user_path)
 
+
 @cli.command()
-def check_config():
-    """Check config files"""
+def check_config() -> None:
+    """Check configuration files"""
     session = SessionManager()
     db_configs = session.get_all_database_configs()
     passwords = session.passwords
-
+    
     if db_configs:
-        print("Database configs found:")
+        print("Database configurations found:")
         for name, config in db_configs.items():
-            password_red = config.get('password_ref', 'N/A')
+            password_ref = config.get('password_ref', 'N/A')
             has_password = password_ref in passwords if password_ref != 'N/A' else True
-            status = "OK" if has_password or config['type'] == 'sqlite' else 'MISSING'
+            status = "OK" if has_password or config['type'] == 'sqlite' else "MISSING"
             print(f"  {status} {name}: {config['type']} @ {config.get('host', config.get('server', config.get('path', 'N/A')))}")
     else:
-        print("No database config found")
+        print("No database configurations found")
 
 
 @cli.command()
 @click.argument('file_path', type=click.Path(exists=True))
-@click.option('-n', '--name', help="Name for this data source")
-def load_file(file_path: str, name: str):
-    """Load data from file"""
+@click.option('-n', '--name', help='Name for this data source')
+@click.option('--separator', default=',', help='CSV separator')
+@click.option('--encoding', default='utf-8', help='File encoding')
+def load_file(file_path: str, name: str, separator: str, encoding: str) -> None:
+    """Load data from file
+    
+    Args:
+        file_path: Path to the file to load
+        name: Name for this data source
+        separator: CSV separator character
+        encoding: File encoding
+    """
     module_manager = ModuleManager()
     result = module_manager.execute_module('file_loader', {
         'action': 'load_file',
         'file_path': file_path,
-        'name': name
+        'name': name,
+        'separator': separator,
+        'encoding': encoding
     })
-
+    
     if result.success:
         print(result.data.get('message', 'File loaded successfully'))
     else:
@@ -158,35 +177,115 @@ def load_file(file_path: str, name: str):
 
 
 @cli.command()
+@click.argument('file_paths', type=click.Path(exists=True), nargs=-1)
+@click.option('-n', '--names', help='Comma-separated names for each file')
+@click.option('--separator', default=',', help='CSV separator')
+@click.option('--encoding', default='utf-8', help='File encoding')
+def load_files(file_paths: tuple, names: str, separator: str, encoding: str) -> None:
+    """Load multiple files at once
+    
+    Args:
+        file_paths: Paths to the files to load
+        names: Comma-separated names for each file
+        separator: CSV separator character
+        encoding: File encoding
+    """
+    if not file_paths:
+        print("No files specified")
+        return
+    
+    name_list = names.split(',') if names else None
+    
+    module_manager = ModuleManager()
+    result = module_manager.execute_module('file_loader', {
+        'action': 'load_multiple_files',
+        'file_paths': list(file_paths),
+        'names': name_list,
+        'separator': separator,
+        'encoding': encoding
+    })
+    
+    if result.success:
+        print(result.data.get('message', 'Files loaded successfully'))
+    else:
+        print(f"Error: {result.error}")
+
+
+@cli.command()
+@click.argument('file_paths', type=click.Path(exists=True), nargs=-1)
+@click.option('-n', '--name', help='Name for combined dataset')
+def combine_files(file_paths: tuple, name: str) -> None:
+    """Combine multiple files into single dataset
+    
+    Args:
+        file_paths: Paths to the files to combine
+        name: Name for the combined dataset
+    """
+    if not file_paths:
+        print("No files specified")
+        return
+    
+    module_manager = ModuleManager()
+    result = module_manager.execute_module('file_loader', {
+        'action': 'combine_multiple_files',
+        'file_paths': list(file_paths),
+        'combined_name': name
+    })
+    
+    if result.success:
+        data = result.data
+        print("FILES COMBINATION REPORT")
+        print("=" * 30)
+        print(f"Combined {len(file_paths)} files")
+        print(f"Total records: {data.get('total_rows', 0):,}")
+        print(f"Dataset name: {data.get('combined_name', 'N/A')}")
+        
+        # Set as current dataset
+        session_manager = SessionManager()
+        session_manager.session['current_source'] = data.get('combined_name')
+        session_manager._save_session()
+        print(f"Combined dataset is now active for analysis")
+        
+    else:
+        print(f"Error: {result.error}")
+
+
+@cli.command()
 @click.argument('db_name')
 @click.argument('table_name')
-@click.option('-n', '--name', help="Name for this data source")
-def load_db(db_name: str, table_name: str, name: str):
-    """Load data from database table"""
-    module_namager = ModuleManager()
+@click.option('-n', '--name', help='Name for this data source')
+def load_db(db_name: str, table_name: str, name: str) -> None:
+    """Load data from database table
+    
+    Args:
+        db_name: Name of the database connection
+        table_name: Name of the table to load
+        name: Name for this data source
+    """
+    module_manager = ModuleManager()
     result = module_manager.execute_module('db_connector', {
         'action': 'load_table',
         'db_name': db_name,
         'table_name': table_name,
         'name': name
     })
-
-    if resilt.success:
+    
+    if result.success:
         print(result.data.get('message', 'Data loaded successfully'))
     else:
         print(f"Error: {result.error}")
 
 
 @cli.command()
-def combine_lines():
-    """Combine data from all configured production lines using TraceCode deduplication"""
+def combine_lines() -> None:
+    """Combine data from all configured production lines using configurable deduplication"""
     module_manager = ModuleManager()
     result = module_manager.execute_module('db_connector', {
         'action': 'combine_all_lines'
     })
-
+    
     if result.success:
-        data= result.data
+        data = result.data
         print("PRODUCTION LINE DATA COMBINATION REPORT")
         print("=" * 50)
         print(f"{data.get('message', 'Lines combined successfully')}")
@@ -194,21 +293,21 @@ def combine_lines():
         print(f"Initial records: {data.get('total_records_initial', 0):,}")
         print(f"Final records: {data.get('total_records_final', 0):,}")
         print(f"Duplicates removed: {data.get('duplicates_removed', 0):,}")
-        print(f"Unique TraceCodes: {data.get('unique_tracecodes', 0):,}")
+        print(f"Unique identifiers: {data.get('unique_tracecodes', 0):,}")
         print(f"Strategy: {data.get('deduplication_strategy', 'N/A')}")
         
         line_dist = data.get('line_distribution', {})
         if line_dist:
-            print("Production line distribution:")
+            print(f"\nProduction Line Distribution:")
             total_records = data.get('total_records_final', 0)
             for line, count in line_dist.items():
                 percentage = (count / total_records) * 100 if total_records > 0 else 0
-                print(f"  {line}: {count:,} records ({percentage:.1f}%)")
+                print(f"  - {line}: {count:,} records ({percentage:.1f}%)")
         
         session_manager = SessionManager()
         session_manager.session['current_source'] = 'combined_production_data'
         session_manager._save_session()
-        print("\nCombined dataset is now active for analysis")
+        print(f"\nCombined dataset is now active for analysis")
         print(f"Use 'oznak analyze <column>' to begin analysis")
         
     else:
@@ -216,13 +315,13 @@ def combine_lines():
 
 
 @cli.command()
-def list_lines():
+def list_lines() -> None:
     """List all configured production lines and their settings"""
     module_manager = ModuleManager()
     result = module_manager.execute_module('db_connector', {
         'action': 'list_connections'
     })
-
+    
     if result.success:
         connections = result.data.get('connections', [])
         details = result.data.get('details', {})
@@ -231,6 +330,7 @@ def list_lines():
             print("=" * 40)
             for conn in connections:
                 detail = details.get(conn, {})
+                print(f"{conn}")
                 print(f"  Type: {detail.get('type', 'unknown')}")
                 print(f"  Location: {detail.get('location', 'N/A')}")
                 print(f"  Table: {detail.get('table', 'N/A')}")
@@ -242,25 +342,25 @@ def list_lines():
         print(f"Error: {result.error}")
 
 
-@cli.command
-def line_distribution():
-    """Show production line data distribution in combined dataset to see how much % of data comes from which line"""
+@cli.command()
+def line_distribution() -> None:
+    """Show production line distribution in combined dataset"""
     session = SessionManager()
     current_source = session.get_current_source()
-
+    
     if not current_source or current_source.get('type') != 'combined_dataset':
-        print("No combined dataset loaded. Run 'combine-lines' first")
+        print("No combined dataset loaded. Run 'combine-lines' first.")
         return
-
+    
     line_dist = current_source.get('line_distribution', {})
     total_records = current_source.get('rows', 0)
-
+    
     if line_dist:
         print("PRODUCTION LINE DISTRIBUTION")
         print("=" * 40)
         for line, count in line_dist.items():
             percentage = (count / total_records) * 100 if total_records > 0 else 0
-            print(f"{line}: {count:,} records ({percentage:.1f}%")
+            print(f"{line}: {count:,} records ({percentage:.1f}%)")
         print(f"Total: {total_records:,} records")
     else:
         print("No line distribution data available")
@@ -268,17 +368,21 @@ def line_distribution():
 
 @cli.command()
 @click.argument('source_name')
-def use(source_name: str):
-    """Set current working dataset"""
+def use(source_name: str) -> None:
+    """Set current working dataset
+    
+    Args:
+        source_name: Name of the dataset to use
+    """
     session_manager = SessionManager()
-    if session_manager.get_current_source(source_name):
+    if session_manager.set_current_source(source_name):
         print(f"Using dataset: {source_name}")
     else:
         print(f"Dataset '{source_name}' not found")
 
 
 @cli.command()
-def list_sources():
+def list_sources() -> None:
     """List all loaded data sources"""
     session = SessionManager()
     sources = session.get_data_sources()
@@ -286,23 +390,25 @@ def list_sources():
         print("Loaded data sources:")
         for name, info in sources.items():
             current_marker = " (current)" if name == session.session.get('current_source') else ""
-            print(f"  - {name}{current_marker}: {info.get('type', 'unknown')} ({info.get('rows', 0)} rows)")
+            print(f"  - {name}{current_marker}: {info.get('type', 'unknown')} ({info.get('rows', 0):,} rows)")
     else:
         print("No data sources loaded")
 
+
 @cli.command()
-def columns():
+def columns() -> None:
     """List all columns in the current dataset"""
     session = SessionManager()
     current = session.get_current_source()
-
+    
     if not current:
-        print("No dataset selected. Use 'use' command first")
+        print("No dataset selected. Use 'use' command first.")
         return
-
+    
     try:
+        # Load the actual data to get real column names
         if current.get('type') == 'combined_dataset':
-            df = session.load_combined.dataframe()
+            df = session.load_combined_dataframe()
         elif current.get('type') == 'file':
             file_path = current.get('path')
             if file_path.endswith('.csv'):
@@ -313,16 +419,121 @@ def columns():
                 df = pd.read_parquet(file_path)
             else:
                 print("Unsupported file format for column listing")
+                return
         else:
             print("Column listing not available for this data source type")
             return
-
+            
         print("Available columns in current dataset:")
         print("=" * 40)
         for i, column in enumerate(df.columns, 1):
             print(f"  {i:2d}. {column}")
+            
     except Exception as e:
         print(f"Error loading column information: {e}")
+
+
+@cli.command()
+@click.argument('product_name')
+@click.option('-c', '--columns', help='Comma-separated list of columns to export')
+@click.option('-o', '--output', help='Output file name')
+@click.option('-f', '--format', type=click.Choice(['csv', 'excel']), default='csv', help='Output format')
+@click.option('--product-column', default='RefName', help='Column containing product names')
+@click.option('--date-from', help='Start date (YYYY-MM-DD)')
+@click.option('--date-to', help='End date (YYYY-MM-DD)')
+def extract_product(product_name: str, columns: str, output: str, format: str, 
+                   product_column: str, date_from: str, date_to: str) -> None:
+    """Extract data for specific product type from all databases
+    
+    Args:
+        product_name: The product type name to extract (e.g., 'XYZ-123')
+        columns: Comma-separated list of columns to include in export
+        output: Output file name
+        format: Output format (csv or excel)
+        product_column: Column containing product names (default: RefName)
+        date_from: Start date for filtering
+        date_to: End date for filtering
+    """
+    column_list = columns.split(',') if columns else []
+    
+    if not output:
+        output = f'product_{product_name}.{format}' if format == 'excel' else f'product_{product_name}.csv'
+    
+    module_manager = ModuleManager()
+    result = module_manager.execute_module('db_connector', {
+        'action': 'extract_product_data',
+        'product_name': product_name,
+        'columns': column_list,
+        'output_file': output,
+        'format': format,
+        'product_column': product_column,
+        'date_from': date_from,
+        'date_to': date_to
+    })
+    
+    if result.success:
+        data = result.data
+        print("PRODUCT DATA EXTRACTION REPORT")
+        print("=" * 45)
+        print(f"Product type: {data.get('product_type', 'N/A')}")
+        print(f"Records found: {data.get('records_found', 0):,}")
+        print(f"Production lines: {', '.join(data.get('production_lines', []))}")
+        print(f"Output file: {data.get('output_file', 'N/A')}")
+        print(f"Columns exported: {len(data.get('columns_exported', []))}")
+        if data.get('columns_exported'):
+            print("  - " + "\n  - ".join(data['columns_exported']))
+    else:
+        print(f"Error: {result.error}")
+
+
+@cli.command()
+@click.argument('pattern', default='*')
+@click.option('-l', '--limit', default=50, help='Maximum number of results to show')
+@click.option('--product-column', default='RefName', help='Column containing product names')
+def search_products(pattern: str, limit: int, product_column: str) -> None:
+    """Search for product types matching a pattern across all databases
+    
+    Args:
+        pattern: Search pattern (* for all products, or partial name)
+        limit: Maximum number of results to display
+        product_column: Column containing product names (default: RefName)
+    """
+    module_manager = ModuleManager()
+    result = module_manager.execute_module('db_connector', {
+        'action': 'search_products',
+        'search_pattern': pattern,
+        'limit': limit,
+        'product_column': product_column
+    })
+    
+    if result.success:
+        data = result.data
+        products = data.get('products', [])
+        
+        if not products:
+            print(f"No product types found matching pattern '{pattern}'")
+            return
+        
+        print(f"PRODUCT TYPE SEARCH RESULTS (showing {min(len(products), limit)} of {data.get('products_found', 0)})")
+        print("=" * 80)
+        print(f"{'Product Type':<30} {'Total Records':<15} {'Lines':<10} {'Production Lines'}")
+        print("-" * 80)
+        
+        for product in products:
+            lines_str = ', '.join(product['lines'][:3])  # Show first 3 lines
+            if len(product['lines']) > 3:
+                lines_str += f" (+{len(product['lines'])-3})"
+            print(f"{str(product['product_name']):<30} {product['total_count']:<15,} {product['production_lines']:<10} {lines_str}")
+        
+        print(f"\nTotal product types found: {data.get('products_found', 0)}")
+        
+        if pattern == '*':
+            print("Tip: Use a specific pattern to narrow down results")
+        else:
+            print("Tip: Use 'extract-product \"<product_name>\"' to export data for a specific product type")
+            
+    else:
+        print(f"Error: {result.error}")
 
 
 @cli.command()
@@ -334,8 +545,20 @@ def columns():
 @click.option('--date-to', help='End date (YYYY-MM-DD)')
 @click.option('--filter-column', help='Column to filter by value')
 @click.option('--filter-value', help='Value to filter by')
-def analyze(column: str, usl: float, lsl: float, date_column: str, date_from: str, date_to: str, filter_column: str, filter_value: str):
-    """Perform statistical analysis on defined column"""
+def analyze(column: str, usl: float, lsl: float, date_column: str, 
+           date_from: str, date_to: str, filter_column: str, filter_value: str) -> None:
+    """Perform statistical analysis on column
+    
+    Args:
+        column: Column to analyze
+        usl: Upper specification limit
+        lsl: Lower specification limit
+        date_column: Column to filter by date
+        date_from: Start date for filtering
+        date_to: End date for filtering
+        filter_column: Column to filter by value
+        filter_value: Value to filter by
+    """
     module_manager = ModuleManager()
     result = module_manager.execute_module('analyzer', {
         'action': 'analyze',
@@ -348,7 +571,7 @@ def analyze(column: str, usl: float, lsl: float, date_column: str, date_from: st
         'filter_column': filter_column,
         'filter_value': filter_value
     })
-
+    
     if result.success:
         data = result.data
         column_name = data.get('column_analyzed', column)
@@ -406,12 +629,13 @@ def analyze(column: str, usl: float, lsl: float, date_column: str, date_from: st
 
 
 @cli.command()
-def info():
+def info() -> None:
     """Show information about current dataset"""
     session = SessionManager()
     current = session.get_current_source()
     if current:
         print("Current dataset information:")
+        print("=" * 35)
         print(f"  Name: {session.session.get('current_source')}")
         print(f"  Type: {current.get('type', 'unknown')}")
         print(f"  Rows: {current.get('rows', 0):,}")
@@ -422,7 +646,8 @@ def info():
             print(f"  Source: {current.get('source', 'N/A')}")
             print(f"  Lines: {', '.join(current.get('lines', []))}")
             print(f"  Duplicates removed: {current.get('duplicates_removed', 0):,}")
-
+            
+            # Try to show actual columns
             try:
                 df = session.load_combined_dataframe()
                 print(f"  Available columns: {list(df.columns)}")
@@ -432,4 +657,94 @@ def info():
             print(f"  File path: {current.get('path', 'N/A')}")
     else:
         print("No current dataset selected")
+
+
+@cli.command()
+@click.option('-c', '--columns', help='Comma-separated list of columns to include')
+@click.option('-f', '--filter-column', help='Column to filter by')
+@click.option('-v', '--filter-value', help='Value to filter by')
+@click.option('-o', '--output', help='Output file name')
+@click.option('-fmt', '--format', type=click.Choice(['csv', 'excel']), default='csv', help='Output format')
+def export_data(columns: str, filter_column: str, filter_value: str, output: str, format: str) -> None:
+    """Export current dataset with optional filtering and column selection
+    
+    Args:
+        columns: Comma-separated list of columns to include
+        filter_column: Column to filter by
+        filter_value: Value to filter by
+        output: Output file name
+        format: Output format (csv or excel)
+    """
+    session = SessionManager()
+    current_source = session.get_current_source()
+    
+    if not current_source:
+        print("No dataset selected. Use 'use' command first.")
+        return
+    
+    try:
+        # Load the current dataset
+        if current_source.get('type') == 'combined_dataset':
+            df = session.load_combined_dataframe()
+        elif current_source.get('type') == 'file':
+            file_path = current_source.get('path')
+            if file_path.endswith('.csv'):
+                df = pd.read_csv(file_path)
+            elif file_path.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file_path)
+            elif file_path.endswith('.parquet'):
+                df = pd.read_parquet(file_path)
+            else:
+                print("Unsupported file format for export")
+                return
+        else:
+            print("Export not available for this data source type")
+            return
+        
+        if df is None or df.empty:
+            print("No data available for export")
+            return
+        
+        # Apply column selection
+        if columns:
+            column_list = [col.strip() for col in columns.split(',')]
+            available_columns = [col for col in column_list if col in df.columns]
+            missing_columns = [col for col in column_list if col not in df.columns]
+            
+            if missing_columns:
+                print(f"Warning: Columns not found: {missing_columns}")
+            
+            if available_columns:
+                df = df[available_columns]
+            else:
+                print("Warning: None of the requested columns found, exporting all columns")
+        
+        # Apply filtering
+        if filter_column and filter_value and filter_column in df.columns:
+            # Try numeric comparison first
+            try:
+                numeric_value = float(filter_value)
+                df = df[df[filter_column] == numeric_value]
+            except ValueError:
+                # String comparison
+                df = df[df[filter_column].astype(str) == filter_value]
+            
+            print(f"Filtered data to {len(df)} records")
+        
+        # Set default output file name
+        if not output:
+            dataset_name = session.session.get('current_source', 'dataset')
+            output = f'{dataset_name}_export.{format}' if format == 'excel' else f'{dataset_name}_export.csv'
+        
+        # Export data
+        if format.lower() == 'excel':
+            df.to_excel(output, index=False)
+        else:
+            df.to_csv(output, index=False)
+        
+        print(f"Successfully exported {len(df)} records to {output}")
+        print(f"Columns exported: {list(df.columns)}")
+        
+    except Exception as e:
+        print(f"Error during export: {e}")
 

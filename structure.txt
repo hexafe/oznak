@@ -1,19 +1,22 @@
-oznak/
-|-- oznak.py
-|-- core/
-|   |-- cli.py
-|   |-- session.py
-|   |-- module_manager.py
-|-- modules/
-|   |-- db_connector.py
-|   |-- file_loader.py
-|   |-- analyzer.py
-|   |-- reporter.py
-|-- interfaces/
-|   |-- module_interface.py
-|-- config/
-|   |-- databases.yaml
-|   |-- passwords.yaml
-|-- data/
-|-- requirements.txt
+Oznak 
+|-- oznak.py (Main entry point)
+|-- core/ (Core framework)
+|   |-- cli.py (Command line interface)
+|   |-- session.py (Session management)
+|   |-- module_manager.py (Module management)
+|-- modules/ (Functional modules)
+|   |-- db_connector.py (Database connections)
+|   |-- file_loader.py (File operations)
+|   |-- analyzer.py (Statistical analysis)
+|   |-- reporter.py (Report generation)
+|-- interfaces/ (Communication layer)
+|   |-- module_interface.py (Module interface)
+|-- config/ (Configuration Files)
+|   |-- databases.yaml (Database config)
+|   |-- passwords.yaml (Passwords)
+|-- data/ (Data storage)
+|   |-- *.parquet (Persisted data)
+|-- docs/ (Documentation)
+    |-- user_guide.md
+    |-- configuration_guide.md
 

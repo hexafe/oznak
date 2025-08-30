@@ -24,6 +24,7 @@ combination:
   timestamp_column: timestamp       # Column used for latest-wins strategy
   merge_strategy: latest_wins       # or 'first_occurrence'
   production_line_column: production_line
+  product_name_column: RefName       # Column containing product names
 
 # Analysis configuration
 analysis:

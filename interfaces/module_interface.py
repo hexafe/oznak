@@ -1,4 +1,8 @@
-"""Module interface for executing different components of the Oznak system"""
+"""Module interface for executing different components of the Oznak system
+
+This module provides a standardized interface for module execution
+that supports both Python functions and external executables
+"""
 
 import json
 import subprocess
@@ -7,9 +11,15 @@ from typing import Dict, Any
 
 
 class ModuleResult:
-    """Result container for module execution"""
+    """Result container for module execution
     
-    def __init__(self, success: bool,  Dict[str, Any] = None, error: str = None):
+    Attributes:
+        success: Whether the module execution was successful
+         Data returned by the module
+        error: Error message if execution failed
+    """
+    
+    def __init__(self, success: bool,  Dict[str, Any] = None, error: str = None) -> None:
         """Initialize module result
         
         Args:
@@ -23,7 +33,11 @@ class ModuleResult:
 
 
 class ModuleInterface:
-    """Interface for executing modules either as Python functions or external executables"""
+    """Interface for executing modules either as Python functions or external executables
+    
+    This class provides a standardized interface for module execution
+    It automatically detects whether to run a Python function or external executable
+    """
     
     @staticmethod
     def execute_module(module_name: str, args: Dict[str, Any]) -> ModuleResult:

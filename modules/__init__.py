@@ -1,3 +1,6 @@
+"""Modules package for Oznak application
 
-"""Modules package for oznak"""
+Contains the modular components of the Oznak system including
+database connectors file loaders analyzers and reporters
+"""
 

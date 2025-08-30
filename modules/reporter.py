@@ -1,4 +1,8 @@
-"""Report generator module for creating analysis reports"""
+"""Report generator module for creating analysis reports
+
+This module handles the generation of analysis reports
+and export of results to various formats
+"""
 
 def execute(args: dict) -> dict:
     """Execute reporter actions
