@@ -1,9 +1,4 @@
-"""Statistical analyzer module for performing data analysis on production data
-
-This module provides comprehensive statistical analysis capabilities
-including basic statistics quality analysis process capability calculations
-and data insights generation
-"""
+"""Statistical analyzer module for performing data analysis on production data"""
 
 import numpy as np
 import pandas as pd
@@ -255,11 +250,11 @@ def _apply_filters(df: pd.DataFrame, args: dict) -> pd.DataFrame:
     return filtered_df
 
 
-def _perform_quality_analysis( np.ndarray, args: dict) -> dict:
+def _perform_quality_analysis(data: np.ndarray, args: dict) -> dict:
     """Perform quality analysis with specification limits
     
     Args:
-         Array of data values
+        data: Array of data values
         args: Dictionary containing quality analysis parameters
         
     Returns:
@@ -303,11 +298,11 @@ def _perform_quality_analysis( np.ndarray, args: dict) -> dict:
     return quality
 
 
-def _calculate_cpk( np.ndarray, usl: float, lsl: float) -> float:
+def _calculate_cpk(data: np.ndarray, usl: float, lsl: float) -> float:
     """Calculate process capability index
     
     Args:
-         Array of data values
+        data: Array of data values
         usl: Upper specification limit
         lsl: Lower specification limit
         
@@ -330,11 +325,11 @@ def _calculate_cpk( np.ndarray, usl: float, lsl: float) -> float:
     return float(cpk)
 
 
-def _calculate_cp( np.ndarray, usl: float, lsl: float) -> float:
+def _calculate_cp(data: np.ndarray, usl: float, lsl: float) -> float:
     """Calculate process capability
     
     Args:
-         Array of data values
+        data: Array of data values
         usl: Upper specification limit
         lsl: Lower specification limit
         
@@ -353,11 +348,11 @@ def _calculate_cp( np.ndarray, usl: float, lsl: float) -> float:
     return float(cp)
 
 
-def _generate_insights( np.ndarray, column: str, df: pd.DataFrame) -> dict:
+def _generate_insights(data: np.ndarray, column: str, df: pd.DataFrame) -> dict:
     """Generate additional insights from the data with configurable options
     
     Args:
-         Array of data values
+        data: Array of data values
         column: Name of the analyzed column
         df: DataFrame containing the data
         
@@ -454,4 +449,3 @@ def _generate_insights( np.ndarray, column: str, df: pd.DataFrame) -> dict:
             insights['line_performance_comparison'] = line_stats
     
     return insights
-
