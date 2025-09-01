@@ -7,4 +7,8 @@ psycopg2-binary>=2.9.0
 pymysql>=1.0.0
 pyodbc>=4.0.0
 pyyaml>=5.4.0
-
+numba>=0.56.0
+psutil>=5.9.0
+aiofiles>=22.1.0
+dask>=2022.0.0
+distributed>=2022.0.0
