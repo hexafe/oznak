@@ -10,6 +10,43 @@ import os
 import yaml
 from typing import Optional, Dict, Any, List
 import pandas as pd
+import psutil
+from datetime import datetime
+
+
+class PerformanceMonitor:
+    """Monitor system performance during operations"""
+    
+    def __init__(self):
+        """Initialize performance monitor"""
+        self.start_time = None
+        self.start_memory = None
+    
+    def start_monitoring(self):
+        """Start performance monitoring"""
+        self.start_time = time.time()
+        self.start_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024  # MB
+    
+    def stop_monitoring(self) -> dict:
+        """Stop performance monitoring and return metrics
+        
+        Returns:
+            Dictionary containing performance metrics
+        """
+        if self.start_time is None or self.start_memory is None:
+            return {}
+        
+        end_time = time.time()
+        end_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024  # MB
+        
+        elapsed_time = end_time - self.start_time
+        memory_used = end_memory - self.start_memory
+        
+        return {
+            'elapsed_time_seconds': elapsed_time,
+            'memory_used_mb': memory_used,
+            'peak_memory_mb': end_memory
+        }
 
 
 class SessionManager:
@@ -29,11 +66,13 @@ class SessionManager:
     
     def __init__(self) -> None:
         """Initialize session manager with default configuration"""
-        self.session_file = 'oznak_session.json'
+        # Use absolute path to ensure consistency
+        self.session_file = os.path.abspath('oznak_session.json')
         self.config_dir = 'config'
         self.session = self._load_session()
         self.db_config = self._load_database_config()
         self.passwords = self._load_passwords()
+        print(f"DEBUG: SessionManager initialized with file: {self.session_file}")
     
     def _load_session(self) -> Dict[str, Any]:
         """Load session data from JSON file
@@ -41,13 +80,20 @@ class SessionManager:
         Returns:
             Dictionary containing session data
         """
+        print(f"DEBUG: Looking for session file: {self.session_file}")
+        print(f"DEBUG: File exists: {os.path.exists(self.session_file)}")
+        
         if os.path.exists(self.session_file):
             try:
                 with open(self.session_file, 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    print(f"DEBUG: Loaded session  {data}")
+                    return data
+            except Exception as e:
+                print(f"DEBUG: Error loading session file: {e}")
                 return self._get_default_session()
         else:
+            print(f"DEBUG: Session file doesn't exist, using default")
             return self._get_default_session()
     
     def _get_default_session(self) -> Dict[str, Any]:
@@ -56,13 +102,15 @@ class SessionManager:
         Returns:
             Dictionary with default session structure
         """
-        return {
+        default_session = {
             'data_sources': {},
             'combined_datasets': {},
             'current_source': None,
             'database_config': {},
             'data_files': {}
         }
+        print(f"DEBUG: Default session: {default_session}")
+        return default_session
     
     def _load_database_config(self) -> Dict[str, Any]:
         """Load database configuration from YAML file
@@ -110,8 +158,52 @@ passwords:
     
     def _save_session(self) -> None:
         """Save current session state to JSON file"""
-        with open(self.session_file, 'w') as f:
-            json.dump(self.session, f, indent=2, default=str)
+        try:
+            print(f"DEBUG: Saving session to: {self.session_file}")
+            print(f"DEBUG: Session data to save: {self.session}")
+            
+            # Ensure directory exists
+            session_dir = os.path.dirname(self.session_file)
+            if session_dir and not os.path.exists(session_dir):
+                os.makedirs(session_dir)
+                print(f"DEBUG: Created session directory: {session_dir}")
+            
+            # Write session data with proper error handling
+            with open(self.session_file, 'w') as f:
+                json.dump(self.session, f, indent=2, default=str)
+            print(f"DEBUG: Session saved successfully to {self.session_file}")
+            
+        except PermissionError as e:
+            print(f"DEBUG: Permission error saving session: {e}")
+            # Try with different approach - use temp file
+            try:
+                temp_file = self.session_file + '.tmp'
+                with open(temp_file, 'w') as f:
+                    json.dump(self.session, f, indent=2, default=str)
+                # Atomically replace the original file
+                os.replace(temp_file, self.session_file)
+                print(f"DEBUG: Session saved successfully via temp file")
+            except Exception as e2:
+                print(f"DEBUG: Error saving session via temp file: {e2}")
+                
+        except Exception as e:
+            print(f"DEBUG: Unexpected error saving session: {e}")
+            # Try with different approach
+            try:
+                # Ensure directory exists again
+                session_dir = os.path.dirname(self.session_file)
+                if session_dir and not os.path.exists(session_dir):
+                    os.makedirs(session_dir)
+                
+                # Write with different parameters
+                with open(self.session_file, 'w', encoding='utf-8') as f:
+                    json.dump(self.session, f, indent=2, default=str, ensure_ascii=False)
+                print(f"DEBUG: Session saved successfully on retry with UTF-8")
+                
+            except Exception as e2:
+                print(f"DEBUG: Error saving session on retry: {e2}")
+                # Last resort - print session to console for debugging
+                print(f"DEBUG: Session data that failed to save: {json.dumps(self.session, indent=2, default=str)}")
     
     def get_database_config(self, db_name: str) -> Optional[Dict[str, Any]]:
         """Get configuration for a specific database
@@ -223,12 +315,15 @@ passwords:
             name: Name of the data source
             source_info: Information about the data source
         """
+        print(f"DEBUG: Adding data source '{name}' with info: {source_info}")
         if 'data_sources' not in self.session:
             self.session['data_sources'] = {}
         self.session['data_sources'][name] = source_info
         if not self.session.get('current_source'):
             self.session['current_source'] = name
+            print(f"DEBUG: Set '{name}' as current source")
         self._save_session()
+        print(f"DEBUG: Data source added successfully")
     
     def get_current_source(self) -> Optional[Dict[str, Any]]:
         """Get current data source information
@@ -262,7 +357,9 @@ passwords:
         Returns:
             Dictionary containing all data sources
         """
-        return self.session.get('data_sources', {})
+        sources = self.session.get('data_sources', {})
+        print(f"DEBUG: Returning sources: {sources}")
+        return sources
     
     def save_combined_dataframe(self, df: pd.DataFrame, name: str = "combined_data") -> None:
         """Save combined DataFrame to parquet file
@@ -314,4 +411,4 @@ passwords:
         """
         data_files = self.session.get('data_files', {})
         return data_files.get(name)
-
+    
