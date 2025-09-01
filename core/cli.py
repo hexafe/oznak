@@ -301,7 +301,7 @@ def combine_lines() -> None:
             print(f"\nProduction Line Distribution:")
             total_records = data.get('total_records_final', 0)
             for line, count in line_dist.items():
-                percentage = (count / total_records) * 100 if total_records > 0 else 0
+                percentage = (count / total_records) * 100
                 print(f"  - {line}: {count:,} records ({percentage:.1f}%)")
         
         session_manager = SessionManager()
@@ -359,7 +359,7 @@ def line_distribution() -> None:
         print("PRODUCTION LINE DISTRIBUTION")
         print("=" * 40)
         for line, count in line_dist.items():
-            percentage = (count / total_records) * 100 if total_records > 0 else 0
+            percentage = (count / total_records) * 100
             print(f"{line}: {count:,} records ({percentage:.1f}%)")
         print(f"Total: {total_records:,} records")
     else:
@@ -431,109 +431,6 @@ def columns() -> None:
             
     except Exception as e:
         print(f"Error loading column information: {e}")
-
-
-@cli.command()
-@click.argument('product_name')
-@click.option('-c', '--columns', help='Comma-separated list of columns to export')
-@click.option('-o', '--output', help='Output file name')
-@click.option('-f', '--format', type=click.Choice(['csv', 'excel']), default='csv', help='Output format')
-@click.option('--product-column', default='RefName', help='Column containing product names')
-@click.option('--date-from', help='Start date (YYYY-MM-DD)')
-@click.option('--date-to', help='End date (YYYY-MM-DD)')
-def extract_product(product_name: str, columns: str, output: str, format: str, 
-                   product_column: str, date_from: str, date_to: str) -> None:
-    """Extract data for specific product type from all databases
-    
-    Args:
-        product_name: The product type name to extract (e.g., 'XYZ-123')
-        columns: Comma-separated list of columns to include in export
-        output: Output file name
-        format: Output format (csv or excel)
-        product_column: Column containing product names (default: RefName)
-        date_from: Start date for filtering
-        date_to: End date for filtering
-    """
-    column_list = columns.split(',') if columns else []
-    
-    if not output:
-        output = f'product_{product_name}.{format}' if format == 'excel' else f'product_{product_name}.csv'
-    
-    module_manager = ModuleManager()
-    result = module_manager.execute_module('db_connector', {
-        'action': 'extract_product_data',
-        'product_name': product_name,
-        'columns': column_list,
-        'output_file': output,
-        'format': format,
-        'product_column': product_column,
-        'date_from': date_from,
-        'date_to': date_to
-    })
-    
-    if result.success:
-        data = result.data
-        print("PRODUCT DATA EXTRACTION REPORT")
-        print("=" * 45)
-        print(f"Product type: {data.get('product_type', 'N/A')}")
-        print(f"Records found: {data.get('records_found', 0):,}")
-        print(f"Production lines: {', '.join(data.get('production_lines', []))}")
-        print(f"Output file: {data.get('output_file', 'N/A')}")
-        print(f"Columns exported: {len(data.get('columns_exported', []))}")
-        if data.get('columns_exported'):
-            print("  - " + "\n  - ".join(data['columns_exported']))
-    else:
-        print(f"Error: {result.error}")
-
-
-@cli.command()
-@click.argument('pattern', default='*')
-@click.option('-l', '--limit', default=50, help='Maximum number of results to show')
-@click.option('--product-column', default='RefName', help='Column containing product names')
-def search_products(pattern: str, limit: int, product_column: str) -> None:
-    """Search for product types matching a pattern across all databases
-    
-    Args:
-        pattern: Search pattern (* for all products, or partial name)
-        limit: Maximum number of results to display
-        product_column: Column containing product names (default: RefName)
-    """
-    module_manager = ModuleManager()
-    result = module_manager.execute_module('db_connector', {
-        'action': 'search_products',
-        'search_pattern': pattern,
-        'limit': limit,
-        'product_column': product_column
-    })
-    
-    if result.success:
-        data = result.data
-        products = data.get('products', [])
-        
-        if not products:
-            print(f"No product types found matching pattern '{pattern}'")
-            return
-        
-        print(f"PRODUCT TYPE SEARCH RESULTS (showing {min(len(products), limit)} of {data.get('products_found', 0)})")
-        print("=" * 80)
-        print(f"{'Product Type':<30} {'Total Records':<15} {'Lines':<10} {'Production Lines'}")
-        print("-" * 80)
-        
-        for product in products:
-            lines_str = ', '.join(product['lines'][:3])  # Show first 3 lines
-            if len(product['lines']) > 3:
-                lines_str += f" (+{len(product['lines'])-3})"
-            print(f"{str(product['product_name']):<30} {product['total_count']:<15,} {product['production_lines']:<10} {lines_str}")
-        
-        print(f"\nTotal product types found: {data.get('products_found', 0)}")
-        
-        if pattern == '*':
-            print("Tip: Use a specific pattern to narrow down results")
-        else:
-            print("Tip: Use 'extract-product \"<product_name>\"' to export data for a specific product type")
-            
-    else:
-        print(f"Error: {result.error}")
 
 
 @cli.command()
@@ -657,94 +554,4 @@ def info() -> None:
             print(f"  File path: {current.get('path', 'N/A')}")
     else:
         print("No current dataset selected")
-
-
-@cli.command()
-@click.option('-c', '--columns', help='Comma-separated list of columns to include')
-@click.option('-f', '--filter-column', help='Column to filter by')
-@click.option('-v', '--filter-value', help='Value to filter by')
-@click.option('-o', '--output', help='Output file name')
-@click.option('-fmt', '--format', type=click.Choice(['csv', 'excel']), default='csv', help='Output format')
-def export_data(columns: str, filter_column: str, filter_value: str, output: str, format: str) -> None:
-    """Export current dataset with optional filtering and column selection
-    
-    Args:
-        columns: Comma-separated list of columns to include
-        filter_column: Column to filter by
-        filter_value: Value to filter by
-        output: Output file name
-        format: Output format (csv or excel)
-    """
-    session = SessionManager()
-    current_source = session.get_current_source()
-    
-    if not current_source:
-        print("No dataset selected. Use 'use' command first.")
-        return
-    
-    try:
-        # Load the current dataset
-        if current_source.get('type') == 'combined_dataset':
-            df = session.load_combined_dataframe()
-        elif current_source.get('type') == 'file':
-            file_path = current_source.get('path')
-            if file_path.endswith('.csv'):
-                df = pd.read_csv(file_path)
-            elif file_path.endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(file_path)
-            elif file_path.endswith('.parquet'):
-                df = pd.read_parquet(file_path)
-            else:
-                print("Unsupported file format for export")
-                return
-        else:
-            print("Export not available for this data source type")
-            return
-        
-        if df is None or df.empty:
-            print("No data available for export")
-            return
-        
-        # Apply column selection
-        if columns:
-            column_list = [col.strip() for col in columns.split(',')]
-            available_columns = [col for col in column_list if col in df.columns]
-            missing_columns = [col for col in column_list if col not in df.columns]
-            
-            if missing_columns:
-                print(f"Warning: Columns not found: {missing_columns}")
-            
-            if available_columns:
-                df = df[available_columns]
-            else:
-                print("Warning: None of the requested columns found, exporting all columns")
-        
-        # Apply filtering
-        if filter_column and filter_value and filter_column in df.columns:
-            # Try numeric comparison first
-            try:
-                numeric_value = float(filter_value)
-                df = df[df[filter_column] == numeric_value]
-            except ValueError:
-                # String comparison
-                df = df[df[filter_column].astype(str) == filter_value]
-            
-            print(f"Filtered data to {len(df)} records")
-        
-        # Set default output file name
-        if not output:
-            dataset_name = session.session.get('current_source', 'dataset')
-            output = f'{dataset_name}_export.{format}' if format == 'excel' else f'{dataset_name}_export.csv'
-        
-        # Export data
-        if format.lower() == 'excel':
-            df.to_excel(output, index=False)
-        else:
-            df.to_csv(output, index=False)
-        
-        print(f"Successfully exported {len(df)} records to {output}")
-        print(f"Columns exported: {list(df.columns)}")
-        
-    except Exception as e:
-        print(f"Error during export: {e}")
-
+       
