@@ -19,12 +19,12 @@ class ModuleResult:
         error: Error message if execution failed
     """
     
-    def __init__(self, success: bool,  Dict[str, Any] = None, error: str = None) -> None:
+    def __init__(self, success: bool, data: Dict[str, Any] = None, error: str = None) -> None:
         """Initialize module result
         
         Args:
             success: Whether the module execution was successful
-             Data returned by the module
+            data: Data returned by the module
             error: Error message if execution failed
         """
         self.success = success
@@ -41,7 +41,7 @@ class ModuleInterface:
     
     @staticmethod
     def execute_module(module_name: str, args: Dict[str, Any]) -> ModuleResult:
-        """Execute a module, preferring external executable if available
+        """Execute a module preferring external executable if available
         
         Args:
             module_name: Name of the module to execute
@@ -118,4 +118,3 @@ class ModuleInterface:
             
         except Exception as e:
             return ModuleResult(success=False, error=str(e))
-
