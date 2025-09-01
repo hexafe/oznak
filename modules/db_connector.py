@@ -1,9 +1,4 @@
-"""Database connector module for loading data from multiple production line databases
-
-This module handles database connections data loading deduplication
-and product-specific data extraction It supports multiple database types
-and provides flexible querying capabilities
-"""
+"""Database connector module for loading data from multiple production line databases"""
 
 import pandas as pd
 import sqlite3
@@ -36,10 +31,6 @@ def execute(args: dict) -> dict:
         return _combine_all_production_lines(args)
     elif action == 'list_connections':
         return _list_connections()
-    elif action == 'extract_product_data':
-        return _extract_product_data(args)
-    elif action == 'search_products':
-        return _search_products(args)
     else:
         return {'error': f'Unknown action: {action}'}
 
@@ -130,6 +121,7 @@ def _combine_all_production_lines(args: dict) -> dict:
                 table_name = config.get('table', 'measurements')
                 df = _load_data_from_database(config, table_name, line_name)
                 
+                # Verify unique identifier column exists
                 if unique_id_column not in df.columns:
                     print(f"Warning: {unique_id_column} not found in {line_name}, skipping...")
                     continue
@@ -240,228 +232,6 @@ def _combine_all_production_lines(args: dict) -> dict:
         return {'success': False, 'error': str(e)}
 
 
-def _extract_product_data(args: dict) -> dict:
-    """Extract data for specific product type from all databases
-    
-    Args:
-        args: Dictionary containing extraction parameters
-        
-    Returns:
-        Dictionary containing extraction results
-    """
-    try:
-        session = SessionManager()
-        db_configs = session.get_all_database_configs()
-        combination_config = session.get_combination_config()
-        
-        # Get parameters
-        product_name = args.get('product_name')  # This is RefName, not unique ID
-        product_column = args.get('product_column', 'RefName')  # Configurable product column
-        selected_columns = args.get('columns', [])
-        output_file = args.get('output_file', f'product_{product_name}.csv')
-        output_format = args.get('format', 'csv')
-        date_from = args.get('date_from')
-        date_to = args.get('date_to')
-        
-        if not product_name:
-            return {'error': 'Product name not specified'}
-        
-        # Load data from all databases for the specific product type
-        all_dataframes = []
-        successful_lines = []
-        
-        print(f"Searching for product type '{product_name}' across all production lines...")
-        
-        for line_name, config in db_configs.items():
-            try:
-                table_name = config.get('table', 'measurements')
-                
-                # Load data using existing function
-                df = _load_data_from_database(config, table_name, line_name)
-                
-                # Filter for specific product type
-                if product_column in df.columns:
-                    product_df = df[df[product_column].astype(str).str.contains(product_name, case=False, na=False)]
-                else:
-                    print(f"Warning: Column '{product_column}' not found in {line_name}")
-                    continue
-                
-                # Apply date filtering if specified
-                if not product_df.empty and date_from:
-                    timestamp_col = combination_config.get('timestamp_column', 'timestamp')
-                    if timestamp_col in product_df.columns:
-                        try:
-                            product_df[timestamp_col] = pd.to_datetime(product_df[timestamp_col])
-                            date_from_parsed = pd.to_datetime(date_from)
-                            product_df = product_df[product_df[timestamp_col] >= date_from_parsed]
-                        except Exception as e:
-                            print(f"Warning: Could not parse date_from for {line_name}: {e}")
-                
-                if not product_df.empty and date_to:
-                    timestamp_col = combination_config.get('timestamp_column', 'timestamp')
-                    if timestamp_col in product_df.columns:
-                        try:
-                            product_df[timestamp_col] = pd.to_datetime(product_df[timestamp_col])
-                            date_to_parsed = pd.to_datetime(date_to)
-                            product_df = product_df[product_df[timestamp_col] <= date_to_parsed]
-                        except Exception as e:
-                            print(f"Warning: Could not parse date_to for {line_name}: {e}")
-                
-                if not product_df.empty:
-                    all_dataframes.append(product_df)
-                    successful_lines.append(line_name)
-                    print(f"Found {len(product_df)} records for product '{product_name}' in {line_name}")
-                else:
-                    print(f"No records found for product '{product_name}' in {line_name}")
-                
-            except Exception as e:
-                print(f"Error accessing {line_name}: {e}")
-                continue
-        
-        if not all_dataframes:
-            return {'error': f'No data found for product type {product_name}'}
-        
-        # Combine all dataframes
-        combined_df = pd.concat(all_dataframes, ignore_index=True)
-        
-        # Select specific columns if requested
-        if selected_columns:
-            # Always include essential columns
-            essential_columns = [product_column]
-            unique_id_column = combination_config.get('unique_identifier', 'TraceCode')
-            if unique_id_column not in essential_columns:
-                essential_columns.append(unique_id_column)
-            
-            # Add timestamp column if it exists
-            timestamp_column = combination_config.get('timestamp_column', 'timestamp')
-            if timestamp_column not in essential_columns:
-                essential_columns.append(timestamp_column)
-            
-            # Add production line column
-            production_line_column = combination_config.get('production_line_column', 'production_line')
-            if production_line_column not in essential_columns:
-                essential_columns.append(production_line_column)
-            
-            # Add requested columns
-            for col in selected_columns:
-                if col in combined_df.columns and col not in essential_columns:
-                    essential_columns.append(col)
-            
-            # Check if all requested columns exist
-            missing_columns = [col for col in selected_columns if col not in combined_df.columns]
-            if missing_columns:
-                print(f"Warning: Columns not found: {missing_columns}")
-            
-            # Select available columns
-            available_columns = [col for col in essential_columns if col in combined_df.columns]
-            if available_columns:
-                combined_df = combined_df[available_columns]
-            else:
-                print("Warning: None of the requested columns found, returning essential columns")
-        
-        # Save to file
-        if output_format.lower() == 'excel':
-            combined_df.to_excel(output_file, index=False)
-        else:
-            combined_df.to_csv(output_file, index=False)
-        
-        return {
-            'success': True,
-            'message': f'Successfully extracted {len(combined_df)} records for product type {product_name}',
-            'records_found': len(combined_df),
-            'production_lines': successful_lines,
-            'output_file': output_file,
-            'columns_exported': list(combined_df.columns),
-            'product_type': product_name
-        }
-        
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
-
-
-def _search_products(args: dict) -> dict:
-    """Search for product types matching a pattern across all databases
-    
-    Args:
-        args: Dictionary containing search parameters
-        
-    Returns:
-        Dictionary containing search results
-    """
-    try:
-        session = SessionManager()
-        db_configs = session.get_all_database_configs()
-        combination_config = session.get_combination_config()
-        
-        # Get parameters
-        search_pattern = args.get('search_pattern', '*')
-        product_column = args.get('product_column', 'RefName')  # Default to RefName
-        limit = args.get('limit', 100)
-        
-        # Search for product types across all databases
-        found_products = {}  # product_name: {count, lines}
-        
-        print(f"Searching for product types matching '{search_pattern}'...")
-        
-        for line_name, config in db_configs.items():
-            try:
-                table_name = config.get('table', 'measurements')
-                
-                # Load a sample of data to check available products
-                df = _load_data_from_database(config, table_name, line_name)
-                
-                # Get unique product types
-                if product_column in df.columns:
-                    if search_pattern == '*':  # Get all products
-                        product_types = df[product_column].dropna().unique()
-                    else:
-                        # Use string matching
-                        product_types = df[
-                            df[product_column].astype(str).str.contains(search_pattern, case=False, na=False)
-                        ][product_column].dropna().unique()
-                    
-                    # Count occurrences and track lines
-                    for product_type in product_types:
-                        product_type_str = str(product_type)
-                        count = len(df[df[product_column] == product_type])
-                        if product_type_str not in found_products:
-                            found_products[product_type_str] = {
-                                'count': 0,
-                                'lines': []
-                            }
-                        found_products[product_type_str]['count'] += count
-                        found_products[product_type_str]['lines'].append(line_name)
-                else:
-                    print(f"Warning: Column '{product_column}' not found in {line_name}")
-                
-            except Exception as e:
-                print(f"Error searching {line_name}: {e}")
-                continue
-        
-        # Convert to list and sort
-        product_list = []
-        for product_name, info in found_products.items():
-            product_list.append({
-                'product_name': product_name,
-                'total_count': info['count'],
-                'production_lines': len(info['lines']),
-                'lines': info['lines']
-            })
-        
-        # Sort by count (descending) and limit
-        product_list.sort(key=lambda x: x['total_count'], reverse=True)
-        product_list = product_list[:limit]
-        
-        return {
-            'success': True,
-            'products_found': len(found_products),
-            'products': product_list
-        }
-        
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
-
-
 def _list_connections() -> dict:
     """List all configured database connections
     
@@ -514,4 +284,3 @@ def _execute_query(args: dict) -> dict:
         Dictionary containing success message
     """
     return {'message': 'Query executed successfully'}
-
