@@ -1,4 +1,4 @@
-"""Module manager for executing different components of the Oznak system."""
+"""Module manager for executing different components of the Oznak system"""
 
 import json
 import subprocess
@@ -7,21 +7,21 @@ from typing import Dict, Any
 
 
 class ModuleResult:
-    """Result container for module execution.
+    """Result container for module execution
     
     Attributes:
-        success: Whether the module execution was successful.
-         Data returned by the module.
-        error: Error message if execution failed.
+        success: Whether the module execution was successful
+         Data returned by the module
+        error: Error message if execution failed
     """
     
     def __init__(self, success: bool, data: Dict[str, Any] = None, error: str = None) -> None:
-        """Initialize module result.
+        """Initialize module result
         
         Args:
-            success: Whether the module execution was successful.
-            data: Data returned by the module.
-            error: Error message if execution failed.
+            success: Whether the module execution was successful
+            data: Data returned by the module
+            error: Error message if execution failed
         """
         self.success = success
         self.data = data or {}
@@ -29,18 +29,22 @@ class ModuleResult:
 
 
 class ModuleInterface:
-    """Interface for executing modules either as Python functions or external executables."""
+    """Interface for executing modules either as Python functions or external executables
+    
+    This class provides a standardized interface for module execution
+    It automatically detects whether to run a Python function or external executable
+    """
     
     @staticmethod
     def execute_module(module_name: str, args: Dict[str, Any]) -> ModuleResult:
-        """Execute a module, preferring external executable if available.
+        """Execute a module preferring external executable if available
         
         Args:
-            module_name: Name of the module to execute.
-            args: Arguments to pass to the module.
+            module_name: Name of the module to execute
+            args: Arguments to pass to the module
             
         Returns:
-            ModuleResult containing execution results.
+            ModuleResult containing execution results
         """
         executable_path = f"modules/bin/{module_name}"
         if os.path.exists(executable_path):
@@ -50,14 +54,14 @@ class ModuleInterface:
     
     @staticmethod
     def _execute_external_module(executable_path: str, args: Dict[str, Any]) -> ModuleResult:
-        """Execute an external module executable.
+        """Execute an external module executable
         
         Args:
-            executable_path: Path to the executable.
-            args: Arguments to pass to the module.
+            executable_path: Path to the executable
+            args: Arguments to pass to the module
             
         Returns:
-            ModuleResult containing execution results.
+            ModuleResult containing execution results
         """
         try:
             input_json = json.dumps(args)
@@ -84,14 +88,14 @@ class ModuleInterface:
     
     @staticmethod
     def _execute_python_module(module_name: str, args: Dict[str, Any]) -> ModuleResult:
-        """Execute a Python module function.
+        """Execute a Python module function
         
         Args:
-            module_name: Name of the Python module.
-            args: Arguments to pass to the module.
+            module_name: Name of the Python module
+            args: Arguments to pass to the module
             
         Returns:
-            ModuleResult containing execution results.
+            ModuleResult containing execution results
         """
         try:
             if module_name == "file_loader":
@@ -113,17 +117,21 @@ class ModuleInterface:
 
 
 class ModuleManager:
-    """Manager for executing modules through the module interface."""
+    """Manager for executing modules through the module interface
+    
+    This class provides a facade for module execution
+    It handles the routing of commands to appropriate modules
+    """
     
     def execute_module(self, module_name: str, args: dict) -> ModuleResult:
-        """Execute a module through the module interface.
+        """Execute a module through the module interface
         
         Args:
-            module_name: Name of the module to execute.
-            args: Arguments to pass to the module.
+            module_name: Name of the module to execute
+            args: Arguments to pass to the module
             
         Returns:
-            ModuleResult containing execution results.
+            ModuleResult containing execution results
         """
         return ModuleInterface.execute_module(module_name, args)
-
+    
