@@ -1,0 +1,30 @@
+oznak/
+├── config/
+│   ├── databases.yaml          # Database connection definitions
+│   └── settings.py             # Global settings (paths, URLs)
+├── src/
+│   ├── main.py                 # Entry point (CLI + API)
+│   ├── db/
+│   │   ├── manager.py          # DB connection manager
+│   │   └── connectors/
+│   │       ├── mysql_connector.py
+│   │       └── mssql_connector.py
+│   ├── query/
+│   │   ├── builder.py          # SQL query builder
+│   │   └── fetcher.py          # Data fetching logic
+│   ├── services/
+│   │   ├── multi_line_fetcher.py  # Aggregates data from multiple lines
+│   │   └── filter_parser.py       # Parses filter parameters
+│   ├── api/
+│   │   └── rest.py             # FastAPI endpoints
+│   ├── cli/
+│   │   └── main.py             # Typer CLI interface
+│   ├── storage/
+│   │   └── sqlite_manager.py   # SQLite CRUD operations
+│   └── utils/
+│       └── env.py              # Environment variable loading
+├── .env.example                # Template for environment variables
+├── .env                        # (Not in repo) Secrets and credentials
+├── requirements.txt
+└── README.md
+

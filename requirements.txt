@@ -1,0 +1,12 @@
+typer
+fastapi
+uvicorn
+sqlalchemy
+pandas
+PyMySQL
+mysql-connector-python
+pyodbc
+python-dotenv
+pyyaml
+openpyxl
+
