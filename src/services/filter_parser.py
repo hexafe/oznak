@@ -27,6 +27,9 @@ def parse_filter_string(filter_str: str):
     if operator not in allowed_operators:
         raise ValueError(f"Invalid operator: {operator}. Allowed: {', '.join(allowed_operators)}")
 
+    # Optional: add a warning or error for potentially problematic operators in shell context
+    # The shell escaping is the user's responsibility, but to be documented better
+
     return column, operator, value
 
 def parse_filters(filters: list = None, last: int = None):

@@ -4,7 +4,7 @@ import pandas as pd
 def export(df, path: str):
     try:
         if path.endswith(".csv"):
-            df.to_csv(path, indes=False)
+            df.to_csv(path, index=False)
             print(f"Data exported to {path}")
         elif path.endswith((".xlsx", ".xls")):
             df.to_excel(path, index=False)

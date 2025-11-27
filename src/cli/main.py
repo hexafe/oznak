@@ -10,11 +10,17 @@ def load(
         lines: str = typer.Argument(..., help="Comma-separated list of lines (e.g., line1, line2"),
         filters: list[str] = typer.Option([], "--filter", "-f", help="Generic filters like 'RefName LIKE V123456'"),
         last: int = typer.Option(None, "--last", help="Limit to last N records"),
+        date_col: str = typer.Option("Date", "--date_col", help="Name of the date/timestamp column for ordering (when using --last)"),
         out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
 ):
     # Validate inputs
     if last is not None and (not isinstance(last, int) or last <= 0):
         print("'last' must be a positive integer")
+        return
+
+    # Validate date column name (basic check, more robust implementation to be done if needed :P)
+    if not date_col.replace('_', '').replace('.', '').isalnum():
+        print(f"Invalid date column name: {date_col}")
         return
 
     fetcher = MultiLineFetcher()
@@ -27,7 +33,7 @@ def load(
 
     lines_list = [line.strip() for line in lines.split(",")]
 
-    df = fetcher.fetch(lines_list, parsed["filters"], parsed["limit"])
+    df = fetcher.fetch(lines_list, parsed["filters"], parsed["limit"], date_col)
 
     if df.empty:
         print("No data to export")
