@@ -28,16 +28,22 @@ def parse_filter_string(filter_str: str):
     
     return column, operator, value
 
-def build_query(table: str, filters: list, limit: int = None):
+def build_query(table: str, filters: list, limit: int = None, date_column: str = "TimeStamp"):
     """
     Build a SQL query with generic filters
     filters: list of filter strings like ["RefName LIKE V123456", "Date >= 2025-01-01"]
+    date_column: name of the date/timestamp column for default ordering (when using LIMIT)
     """
     # Validate table name (SQL injection protection)
     if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
         raise ValueError(f"Invalid table name: {table}")
+
+    # Validate date_column name (SQL injection protection)
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", date_column):
+        raise ValueError(f"Invalid date column name: {date_column}")
     
     safe_table = f"`{table}`"
+    safe_date_col = f"'{date_column}'"
 
     where_conditions = []
     params = []
@@ -74,7 +80,7 @@ def build_query(table: str, filters: list, limit: int = None):
     if limit:
         if not isinstance(limit, int) or limit <= 0:
             raise ValueError("LIMIT must be a positive integer")
-        base_query = f"{base_query} ORDER BY {safe_table}.`Date` DESC LIMIT {limit}"  # Default ordering
+        base_query = f"{base_query} ORDER BY {safe_date_col} DESC LIMIT {limit}"
     
     return base_query, params
 
