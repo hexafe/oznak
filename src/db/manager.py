@@ -11,12 +11,12 @@ class DBManager:
             self.cfg = yaml.safe_load(f)["databases"]
 
 
-    def connect(self, line: str):
-        if line not in self.cfg:
-            raise ValueError(f"Line {line} not found in configuration")
+    def connect(self, database: str):
+        if database not in self.cfg:
+            raise ValueError(f"Database {database} not found in configuration")
 
-        entry = self.cfg[line]
-        user, password = get_credentials(line)
+        entry = self.cfg[database]
+        user, password = get_credentials(database)
 
         if entry["type"] == "mysql":
             return connect_mysql(entry, user, password)
