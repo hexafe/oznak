@@ -13,7 +13,7 @@ oznak/
 │   │   ├── builder.py          # SQL query builder
 │   │   └── fetcher.py          # Data fetching logic
 │   ├── services/
-│   │   ├── multi_line_fetcher.py  # Aggregates data from multiple lines
+│   │   ├── multi_database_fetcher.py  # Aggregates data from multiple databases
 │   │   └── filter_parser.py       # Parses filter parameters
 │   ├── api/
 │   │   └── rest.py             # FastAPI endpoints

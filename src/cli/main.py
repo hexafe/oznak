@@ -1,5 +1,5 @@
 import typer
-from src.services.multi_line_fetcher import MultiLineFetcher
+from src.services.multi_database_fetcher import MultiDatabaseFetcher
 from src.services.filter_parser import parse_filters
 from src.storage.exporter import export
 
@@ -7,8 +7,8 @@ app = typer.Typer()
 
 @app.command()
 def load(
-        lines: str = typer.Argument(..., help="Comma-separated list of lines (e.g., line1, line2"),
-        filters: list[str] = typer.Option([], "--filter", "-f", help="Generic filters like 'RefName LIKE V123456'"),
+        databases str = typer.Argument(..., help="Comma-separated list of databases (e.g., database1, database2"),
+        filters: list[str] = typer.Option([], "--filter", "-f", help="Example filter: 'RefName LIKE V123456'"),
         last: int = typer.Option(None, "--last", help="Limit to last N records"),
         date_col: str = typer.Option("Date", "--date_col", help="Name of the date/timestamp column for ordering (when using --last)"),
         out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
@@ -31,9 +31,9 @@ def load(
         if not typer.confirm("Are you sure you want to continue?"):
             return
 
-    lines_list = [line.strip() for line in lines.split(",")]
+    databases_list = [database.strip() for database in databases.split(",")]
 
-    df = fetcher.fetch(lines_list, parsed["filters"], parsed["limit"], date_col)
+    df = fetcher.fetch(databases_list, parsed["filters"], parsed["limit"], date_col)
 
     if df.empty:
         print("No data to export")

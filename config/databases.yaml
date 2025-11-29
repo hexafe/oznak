@@ -1,29 +1,29 @@
 databases:
-  line1:
+  database1:
     type: mysql
     host: 192.168.10.11
     port: 3306
-    database: prod_line1
+    database: prod_database1
     table: measurements
 
-  line2:
+  database2:
     type: mysql
     host: 192.168.10.12
     port: 3306
-    database: prod_line2
+    database: prod_database2
     table: measurements
 
-  line3:
+  database3:
     type: mssql
     host: 192.168.10.13
     port: 1433
-    database: prod_line3
+    database: prod_database3
     table: main_data
 
-  line4:
+  database4:
     type: mysql
     host: 192.168.10.14
     port: 3306
-    database: prod_line4
+    database: prod_database4
     table: measurements
 
