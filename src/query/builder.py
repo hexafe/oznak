@@ -43,10 +43,11 @@ def build_query(table: str, filters: list, limit: int = None, date_column: str =
         raise ValueError(f"Invalid date column name: {date_column}")
     
     safe_table = f"`{table}`"
-    safe_date_col = f"'{date_column}'"
+    safe_date_col = f"`{date_column}`"
 
     where_conditions = []
-    params = []
+    params = {}
+    param_counter = 0
     
     for filter_str in filters:
         column, operator, value = parse_filter_string(filter_str)
@@ -54,21 +55,30 @@ def build_query(table: str, filters: list, limit: int = None, date_column: str =
         
         # Handle different operators
         if operator in ['LIKE', 'NOT LIKE']:
-            where_conditions.append(f"{safe_column} {operator} %s")
-            params.append(value)
+            param_name = f"param_{param_counter}"
+            where_conditions.append(f"{safe_column} {operator} :{param_name}")
+            params[param_name] = value
+            param_counter += 1
         elif operator in ['IN', 'NOT IN']:
             # For IN clauses, value should be comma-separated like "A,B,C"
             values = [v.strip() for v in value.split(',')]
-            placeholders = ','.join(['%s'] * len(values))
-            where_conditions.append(f"{safe_column} {operator} ({placeholders})")
-            params.extend(values)
+            placeholders = []
+            for v in values:
+                param_name = f"param_{param_counter}"
+                placeholders.append(f":{param_name}")
+                params[param_name] = v
+                param_counter += 1
+            where_clause_part = f"{safe_column} {operator} ({','.join(placeholders)})"
+            where_conditions.append(where_clause_part)
         elif operator in ['IS', 'IS NOT']:
             # For IS/IS NOT, value should be NULL, NOT NULL, etc.
             where_conditions.append(f"{safe_column} {operator} {value}")
         else:
             # For =, !=, <>, <, >, <=, >=
-            where_conditions.append(f"{safe_column} {operator} %s")
-            params.append(value)
+            param_name = f"param_{param_counter}"
+            where_conditions.append(f"{safe_column} {operator} :{param_name}")
+            params[param_name] = value
+            param_counter += 1
 
     if not where_conditions:
         base_query = f"SELECT * FROM {safe_table}"
