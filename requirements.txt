@@ -9,4 +9,5 @@ pyodbc
 python-dotenv
 pyyaml
 openpyxl
+pytest
 
