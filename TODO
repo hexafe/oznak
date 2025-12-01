@@ -1,5 +1,6 @@
+- unit tests
+- SQLAlchemy integration
 - documentation
 - README.md
-- unit tests
 - next feature
 

@@ -226,7 +226,7 @@ def test_build_query_invalid_table_name():
     table = "my_table; DROP TABLE users; --"
     filters = ["Status = ACTIVE"]
 
-    # Acti & Assert
+    # Act & Assert
     with pytest.raises(ValueError, match="Invalid table name"):
         build_query(table, filters)
 
@@ -240,7 +240,7 @@ def test_build_query_invalid_date_column_name():
     limit = 100
     date_column = "Date; DROP TABLE users; --"
 
-    # Acti & Assert
+    # Act & Assert
     with pytest.raises(ValueError, match="Invalid date column name"):
         build_query(table, filters, limit=limit, date_column=date_column)
 

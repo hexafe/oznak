@@ -4,7 +4,7 @@ from src.query.fetcher import fetch_data
 import pandas as pd
 
 
-class MultidatabaseFetcher:
+class MultiDatabaseFetcher:
     def __init__(self):
         self.db = DBManager()
 
