@@ -23,7 +23,7 @@ def load(
         print(f"Invalid date column name: {date_col}")
         return
 
-    fetcher = MultiLineFetcher()
+    fetcher = MultiDatabaseFetcher()
     parsed = parse_filters(filters, last)
 
     if not parsed["filters"] and parsed["limit"] is None:

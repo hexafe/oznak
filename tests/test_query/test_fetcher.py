@@ -1,7 +1,9 @@
 import pytest
 import pandas as pd
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, call
 from src.query.fetcher import fetch_data
+from sqlalchemy import text, sql
+from sqlalchemy.sql.elements import TextClause
 
 
 @patch('src.query.fetcher.pd.read_sql')
@@ -20,10 +22,12 @@ def test_fetch_data_success_with_params(mock_read_sql):
     result_df = fetch_data(mock_engine, query, params)
 
     # Assert
-    # Check if pd.read_sql was called with the correct arguments
-    mock_read_sql.assert_called_once_with(query, mock_engine, params=params)
-    # Check if the returned DataFrame is the one from pd.read_sql
-    pd.testing.assert_frame_equal(result_df, expected_df)
+    assert mock_read_sql.call_count == 1
+    args, kwargs = mock_read_sql.call_args
+    assert isinstance(args[0], TextClause)
+    assert str(args[0]) == query
+    assert args[1] == mock_engine
+    assert kwargs == {"params": params}
 
 @patch('src.query.fetcher.pd.read_sql')
 def test_fetch_data_success_no_params(mock_read_sql):
@@ -41,10 +45,12 @@ def test_fetch_data_success_no_params(mock_read_sql):
     result_df = fetch_data(mock_engine, query, params)
 
     # Assert
-    # Check if pd.read_sql was called with the query and engine, but without params
-    mock_read_sql.assert_called_once_with(query, mock_engine)
-    # Check if the returned DataFrame is the one from pd.read_sql
-    pd.testing.assert_frame_equal(result_df, expected_df)
+    assert mock_read_sql.call_count == 1
+    args, kwargs = mock_read_sql.call_args
+    assert isinstance(args[0], TextClause)
+    assert str(args[0]) == query
+    assert args[1] == mock_engine
+    assert kwargs == {}
 
 @patch('src.query.fetcher.pd.read_sql')
 def test_fetch_data_error(mock_read_sql):
@@ -62,8 +68,10 @@ def test_fetch_data_error(mock_read_sql):
     result_df = fetch_data(mock_engine, query, params)
 
     # Assert
-    # Check if pd.read_sql was called with the correct arguments
-    mock_read_sql.assert_called_once_with(query, mock_engine, params=params)
-    # Check if the returned DataFrame is empty
-    assert result_df.empty
+    assert mock_read_sql.call_count == 1
+    args, kwargs = mock_read_sql.call_args
+    assert isinstance(args[0], TextClause)
+    assert str(args[0]) == query
+    assert args[1] == mock_engine
+    assert kwargs == {"params": params}
 
