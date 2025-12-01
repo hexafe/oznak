@@ -13,10 +13,7 @@ class MultiDatabaseFetcher:
 
         for i, database in enumerate(databases):
             print(f"Processing database {i+1}/{len(databases)}: {database}")
-            conn = self.db.connect(database)
-            if not conn:
-                print(f"Could not connect to {database}, skipping...")
-                continue
+            engine = self.db.get_engine(database)
 
             cfg = self.db.cfg[database]
             table = cfg["table"]
@@ -29,14 +26,12 @@ class MultiDatabaseFetcher:
                 print(f"Error building query for {database}: {e}")
                 continue
 
-            df = fetch_data(conn, query, tuple(params) if params else None)
+            df = fetch_data(engine, query, params)
             if not df.empty:
-                df["_Sourcedatabase"] = database
+                df["source_database"] = database
                 frames.append(df)
             else:
                 print(f"   └── No data returned for this database")
-
-            conn.close()
 
         if not frames:
             print(f"No data fetched from any database")
