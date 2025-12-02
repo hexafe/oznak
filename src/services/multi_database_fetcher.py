@@ -2,6 +2,35 @@ from src.db.manager import DBManager
 from src.query.builder import build_query
 from src.query.fetcher import fetch_data
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def _fetch_single_database(database, filters, limit, date_column, db_manager_instance):
+    """
+    Helper function to fetch data from a single database within a thread
+    Returns the DataFrame with 'source_database' column or None if it fails
+    """
+    try:
+        print(f"    Thread fetching database: {database}")
+        engine = db_manager_instance.get_engine(database)
+
+        cfg = db_manager_instance.cfg[database]
+        table = cfg["table"]
+
+        query, params = build_query(table, filters, limit, date_column)
+        # print(f"   └── Query: {query[:50]}...") # Could be too much spam on the terminal :(
+        
+        df = fetch_data(engine, query, params)
+        if not df.empty:
+            df["source_database"] = database
+            print(f"    Thread fetched {len(df)} records from {database}")
+            return df
+        else:
+            print(f"    Thread fetched no data from {database}")
+            return None
+    except Exception as e:
+        print(f"    Thread failed to fetch from {database}: {e}")
+        return None
 
 
 class MultiDatabaseFetcher:
@@ -11,31 +40,21 @@ class MultiDatabaseFetcher:
     def fetch(self, databases: list, filters: list, limit: int = None, date_column: str = "TimeStamp"):
         frames = []
 
-        for i, database in enumerate(databases):
-            print(f"Processing database {i+1}/{len(databases)}: {database}")
+        # Use ThreadPoolExecutor to fetch from multiple databases concurrently
+        # max_workers could be configurable, or default to number of CPUs
+        with ThreadPoolExecutor() as executor:
+            future_to_database = {
+                executor.submit(_fetch_single_database, db, filters, limit, date_column, self.db): db for db in databases
+            }
+
+        for future in as_completed(future_to_database):
+            database = future_to_database[future]
             try:
-                engine = self.db.get_engine(database)
+                df = future.result()
+                if df is not None and not df.empty:
+                    frames.append(df)
             except Exception as e:
-                print(f"Could not connect to {database}, skipping... Error: {e}")
-                continue
-
-            cfg = self.db.cfg[database]
-            table = cfg["table"]
-
-            # Build a query safely with generic filters
-            try:
-                query, params = build_query(table, filters, limit, date_column)
-                print(f"   └── Query: {query[:50]}...")
-            except ValueError as e:
-                print(f"Error building query for {database}: {e}")
-                continue
-
-            df = fetch_data(engine, query, params)
-            if not df.empty:
-                df["source_database"] = database
-                frames.append(df)
-            else:
-                print(f"   └── No data returned for this database")
+                print(f"Unexpected error processing result for {database}: {e}")
 
         if not frames:
             print(f"No data fetched from any database")
