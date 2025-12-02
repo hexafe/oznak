@@ -32,7 +32,7 @@ class DBManager:
 
         engine = create_engine(
             conn_str,
-            echo=True, # For debugging
+            echo=False, # For debugging
             pool_pre_ping=True, # Verify connection before use
             # Add other options as needed: pool_size, max_overflow, etc
         )
