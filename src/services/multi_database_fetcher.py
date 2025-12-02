@@ -13,7 +13,11 @@ class MultiDatabaseFetcher:
 
         for i, database in enumerate(databases):
             print(f"Processing database {i+1}/{len(databases)}: {database}")
-            engine = self.db.get_engine(database)
+            try:
+                engine = self.db.get_engine(database)
+            except Exception as e:
+                print(f"Could not connect to {database}, skipping... Error: {e}")
+                continue
 
             cfg = self.db.cfg[database]
             table = cfg["table"]

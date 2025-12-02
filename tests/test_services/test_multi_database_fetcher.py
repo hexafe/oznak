@@ -117,4 +117,187 @@ def test_fetch_multiple_databases_success(mock_db_manager_class, mock_build_quer
     pd.testing.assert_frame_equal(result_df, expected_combined_df)
 
 """ Test case: error - connection failure for one database """
-#TODO:
+@patch("src.services.multi_database_fetcher.fetch_data")
+@patch("src.services.multi_database_fetcher.build_query")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query, mock_fetch_data):
+    # Arrange
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine1 = Mock()
+    mock_engine2 = Mock()
+    mock_db_manager_instance.get_engine.side_effect = [mock_engine1, Exception("Connection failed")]
+    mock_db_manager_instance.cfg = {
+        "database1": {"table": "table1"},
+        "database2": {"table": "table2"}
+    }
+
+    filters = ["Status = ACTIVE"]
+    limit = 5
+    date_column = "timestamp"
+    expected_query = "SELECT * FROM `table1` WHERE `Status` = :param_0 ORDER BY `timestamp` desc LIMIT 5"
+    expected_params = {"param_0": "ACTIVE"}
+
+    expected_df_db1 = pd.DataFrame({"col1": [1, 2], "col2": ['a', 'b']})
+    expected_final_df_db1 = expected_df_db1.copy()
+    expected_final_df_db1["source_database"] = "database1"
+
+    mock_build_query.return_value = expected_query, expected_params
+    mock_fetch_data.return_value = expected_df_db1
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    # Act
+    result_df = fetcher.fetch(["database1", "database2"], filters, limit, date_column)
+
+    # Assert
+    assert mock_db_manager_instance.get_engine.call_count == 2
+    mock_db_manager_instance.get_engine.assert_has_calls([call("database1"), call("database2")])
+    mock_build_query.assert_called_once_with("table1", filters, limit, date_column)
+    mock_fetch_data.assert_called_once_with(mock_engine1, expected_query, expected_params)
+    pd.testing.assert_frame_equal(result_df, expected_final_df_db1)
+
+""" Test case: error - query building failure for one database """
+@patch("src.services.multi_database_fetcher.fetch_data")
+@patch("src.services.multi_database_fetcher.build_query")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_query, mock_fetch_data):
+    # Arrange
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine1 = Mock()
+    mock_engine2 = Mock()
+    mock_db_manager_instance.get_engine.side_effect = [mock_engine1, mock_engine2]
+    mock_db_manager_instance.cfg = {
+        'database1': {'table': 'table1'},
+        'database2': {'table': 'table2'}
+    }
+
+    filters = ["Status = ACTIVE"]
+    limit = 5
+    date_column = "timestamp"
+    expected_query_db1 = "SELECT * FROM `table1` WHERE `Status` = :param_0 ORDER BY `timestamp` DESC LIMIT 5"
+    expected_params_db1 = {"param_0": "ACTIVE"}
+    
+    mock_build_query.side_effect = [ (expected_query_db1, expected_params_db1), ValueError("Invalid column name in filter for database2") ]
+
+    expected_df_db1 = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})
+    expected_final_df_db1 = expected_df_db1.copy()
+    expected_final_df_db1['source_database'] = 'database1'
+
+    mock_fetch_data.return_value = expected_df_db1
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    # Act
+    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column)
+
+    # Assert
+    assert mock_db_manager_instance.get_engine.call_count == 2
+    mock_db_manager_instance.get_engine.assert_has_calls([call('database1'), call('database2')])
+    assert mock_build_query.call_count == 2
+    mock_build_query.assert_has_calls([call('table1', filters, limit, date_column), call('table2', filters, limit, date_column)])
+    mock_fetch_data.assert_called_once_with(mock_engine1, expected_query_db1, expected_params_db1)
+    pd.testing.assert_frame_equal(result_df, expected_final_df_db1)
+
+""" Test case: error - fetch data returns empty for one database """
+@patch("src.services.multi_database_fetcher.fetch_data")
+@patch("src.services.multi_database_fetcher.build_query")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_data_empty_one_db(mock_db_manager_class, mock_build_query, mock_fetch_data):
+    # Arrange
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine1 = Mock()
+    mock_engine2 = Mock()
+    mock_db_manager_instance.get_engine.side_effect = [mock_engine1, mock_engine2]
+    mock_db_manager_instance.cfg = {
+        'database1': {'table': 'table1'},
+        'database2': {'table': 'table2'}
+    }
+
+    filters = ["Status = ACTIVE"]
+    limit = 5
+    date_column = "timestamp"
+    expected_query = "SELECT * FROM `table1` WHERE `Status` = :param_0 ORDER BY `timestamp` DESC LIMIT 5"
+    expected_params = {"param_0": "ACTIVE"}
+
+    expected_df_db1 = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})
+    expected_df_db2_empty = pd.DataFrame()
+    expected_final_df_db1 = expected_df_db1.copy()
+    expected_final_df_db1['source_database'] = 'database1'
+    expected_result_df = expected_final_df_db1
+
+    mock_build_query.return_value = expected_query, expected_params
+    mock_fetch_data.side_effect = [expected_df_db1, expected_df_db2_empty]
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    # Act
+    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column)
+
+    # Assert
+    assert mock_db_manager_instance.get_engine.call_count == 2
+    mock_db_manager_instance.get_engine.assert_has_calls([call('database1'), call('database2')])
+    assert mock_build_query.call_count == 2
+    mock_build_query.assert_has_calls([call('table1', filters, limit, date_column), call('table2', filters, limit, date_column)])
+    assert mock_fetch_data.call_count == 2
+    mock_fetch_data.assert_has_calls([
+        call(mock_engine1, expected_query, expected_params),
+        call(mock_engine2, expected_query, expected_params)
+    ])
+    pd.testing.assert_frame_equal(result_df, expected_result_df)
+
+""" Test case: edge case - no data returned from any database """
+@patch("src.services.multi_database_fetcher.fetch_data")
+@patch("src.services.multi_database_fetcher.build_query")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_no_data_any_db(mock_db_manager_class, mock_build_query, mock_fetch_data):
+    # Arrange
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine1 = Mock()
+    mock_engine2 = Mock()
+    mock_db_manager_instance.get_engine.side_effect = [mock_engine1, mock_engine2]
+    mock_db_manager_instance.cfg = {
+        'database1': {'table': 'table1'},
+        'database2': {'table': 'table2'}
+    }
+
+    filters = ["Status = INACTIVE"]
+    limit = 5
+    date_column = "timestamp"
+    expected_query = "SELECT * FROM `table1` WHERE `Status` = :param_0 ORDER BY `timestamp` DESC LIMIT 5"
+    expected_params = {"param_0": "INACTIVE"}
+
+    expected_df_empty = pd.DataFrame()
+
+    mock_build_query.return_value = expected_query, expected_params
+    mock_fetch_data.return_value = expected_df_empty
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    # Act
+    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column)
+
+    # Assert
+    assert mock_db_manager_instance.get_engine.call_count == 2
+    mock_db_manager_instance.get_engine.assert_has_calls([call('database1'), call('database2')])
+    assert mock_build_query.call_count == 2
+    mock_build_query.assert_has_calls([call('table1', filters, limit, date_column), call('table2', filters, limit, date_column)])
+    assert mock_fetch_data.call_count == 2
+    mock_fetch_data.assert_has_calls([
+        call(mock_engine1, expected_query, expected_params),
+        call(mock_engine2, expected_query, expected_params)
+    ])
+    assert result_df.empty
+    assert result_df.shape[0] == 0
+
