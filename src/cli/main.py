@@ -8,9 +8,10 @@ app = typer.Typer()
 @app.command()
 def load(
         databases: str = typer.Argument(..., help="Comma-separated list of databases (e.g., database1, database2"),
-        filters: list[str] = typer.Option([], "--filter", "-f", help="Example filter: 'RefName LIKE V123456'"),
+        select_columns: str = typer.Option(None, "--select-columns", "--c", help="Comma-separated list of columns to select (e.g., 'RefName, Date, FittingForce')"),
+        filters: list[str] = typer.Option([], "--filter", "-f", help="Example filter: 'RefName IN V123456, ABC123'"),
         last: int = typer.Option(None, "--last", help="Limit to last N records"),
-        date_col: str = typer.Option("Date", "--date_col", help="Name of the date/timestamp column for ordering (when using --last)"),
+        date_col: str = typer.Option("TimeStamp", "--date_col", help="Name of the date/timestamp column for ordering (when using --last)"),
         out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
 ):
     # Validate inputs
@@ -33,7 +34,11 @@ def load(
 
     databases_list = [database.strip() for database in databases.split(",")]
 
-    df = fetcher.fetch(databases_list, parsed["filters"], parsed["limit"], date_col)
+    columns_list = None
+    if select_columns:
+        columns_list = [col.strip() for col in select_columns.split(',')]
+
+    df = fetcher.fetch(databases_list, parsed["filters"], parsed["limit"], date_col, columns_list)
 
     if df.empty:
         print("No data to export")

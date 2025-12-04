@@ -19,7 +19,7 @@ def parse_filter_string(filter_str: str):
     
     # Validate operator (only allow safe operators)
     allowed_operators = {
-        '=', '!=', '<>', '<', '>', '<=', '>=', 
+        '=', '!=', '<>', '<=', '>=', '<', '>', # > and < to be removed? due to some weird bug on windows shell
         'LIKE', 'NOT LIKE', 'IN', 'NOT IN',
         'IS', 'IS NOT'
     }
@@ -28,11 +28,12 @@ def parse_filter_string(filter_str: str):
     
     return column, operator, value
 
-def build_query(table: str, filters: list, limit: int = None, date_column: str = "TimeStamp"):
+def build_query(table: str, filters: list, limit: int = None, date_column: str = "TimeStamp", columns: list = None):
     """
     Build a SQL query with generic filters
     filters: list of filter strings like ["RefName LIKE V123456", "Date >= 2025-01-01"]
     date_column: name of the date/timestamp column for default ordering (when using LIMIT)
+    columns: list of columns for SELECT statement
     """
     # Validate table name (SQL injection protection)
     if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
@@ -42,6 +43,18 @@ def build_query(table: str, filters: list, limit: int = None, date_column: str =
     if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", date_column):
         raise ValueError(f"Invalid date column name: {date_column}")
     
+    # Validate columns list if provided (SQL injection protection)
+    if columns is not None:
+        validated_columns = []
+        for col in columns:
+            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
+                raise ValueError(f"Invalid column name: {col}")
+            safe_col = f"`{col}`"
+            validated_columns.append(safe_col)
+        select_clause = f"SELECT {', '.join(validated_columns)}"
+    else:
+        select_clause = f"SELECT *"
+
     safe_table = f"`{table}`"
     safe_date_col = f"`{date_column}`"
 
@@ -81,16 +94,16 @@ def build_query(table: str, filters: list, limit: int = None, date_column: str =
             param_counter += 1
 
     if not where_conditions:
-        base_query = f"SELECT * FROM {safe_table}"
+        base_query = f"{select_clause} FROM {safe_table}"
     else:
         where_clause = " AND ".join(where_conditions)
-        base_query = f"SELECT * FROM {safe_table} WHERE {where_clause}"
+        base_query = f"{select_clause} FROM {safe_table} WHERE {where_clause}"
 
     # Add LIMIT if specified
     if limit:
         if not isinstance(limit, int) or limit <= 0:
             raise ValueError("LIMIT must be a positive integer")
         base_query = f"{base_query} ORDER BY {safe_date_col} DESC LIMIT {limit}"
-    
+
     return base_query, params
 
