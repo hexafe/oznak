@@ -39,7 +39,7 @@ def test_fetch_single_database_success(mock_db_manager_class, mock_build_query, 
 
     # Assert
     mock_db_manager_instance.get_engine.assert_called_once_with("database1")
-    mock_build_query.assert_called_once_with("table1", filters, limit, date_column)
+    mock_build_query.assert_called_once_with("table1", filters, limit, date_column, None)
     mock_fetch_data.assert_called_once_with(mock_engine, expected_query, expected_params)
     pd.testing.assert_frame_equal(result_df, expected_final_df)
 
@@ -99,8 +99,8 @@ def test_fetch_multiple_databases_success(mock_db_manager_class, mock_build_quer
     mock_db_manager_instance.get_engine.assert_has_calls([call("database1"), call("database2")], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call("table1", filters, limit, date_column),
-        call("table2", filters, limit, date_column)
+        call("table1", filters, limit, date_column, None),
+        call("table2", filters, limit, date_column, None)
     ], any_order=True)
     assert mock_fetch_data.call_count == 2
     mock_fetch_data.assert_has_calls([
@@ -145,7 +145,7 @@ def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query
     expected_final_df_db1 = expected_df_db1.copy()
     expected_final_df_db1["source_database"] = "database1"
 
-    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg):
+    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg, columns_arg = None):
         if table == "table1":
             return expected_query, expected_params
         elif table == "table2":
@@ -168,7 +168,7 @@ def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query
     fetcher.db = mock_db_manager_instance
 
     # Act
-    result_df = fetcher.fetch(["database1", "database2"], filters, limit, date_column)
+    result_df = fetcher.fetch(["database1", "database2"], filters, limit, date_column, None)
 
     # Assert
     assert mock_db_manager_instance.get_engine.call_count == 2
@@ -178,7 +178,7 @@ def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query
     ], any_order=True)
     # build_query is called only for the successful database (database1) as db2's thread fails on get_engine
     assert mock_build_query.call_count == 1
-    mock_build_query.assert_called_once_with("table1", filters, limit, date_column)
+    mock_build_query.assert_called_once_with("table1", filters, limit, date_column, None)
     # fetch_data is called only for the successful database (database1)
     mock_fetch_data.assert_called_once_with(mock_engine1, expected_query, expected_params)
 
@@ -213,7 +213,7 @@ def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_quer
     expected_final_df_db1 = expected_df_db1.copy()
     expected_final_df_db1['source_database'] = 'database1'
 
-    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg):
+    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg, columns_arg = None):
         if table == "table1":
             return expected_query_db1, expected_params_db1
         elif table == "table2":
@@ -235,7 +235,7 @@ def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_quer
     fetcher.db = mock_db_manager_instance
 
     # Act
-    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column)
+    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column, None)
 
     # Assert
     assert mock_db_manager_instance.get_engine.call_count == 2
@@ -245,8 +245,8 @@ def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_quer
     ], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call('table1', filters, limit, date_column),
-        call('table2', filters, limit, date_column)
+        call('table1', filters, limit, date_column, None),
+        call('table2', filters, limit, date_column, None)
     ], any_order=True)
     # fetch_data is called only for the successful database (database1) as db2's thread fails on build_query
     mock_fetch_data.assert_called_once_with(mock_engine1, expected_query_db1, expected_params_db1)
@@ -301,7 +301,7 @@ def test_fetch_data_empty_one_db(mock_db_manager_class, mock_build_query, mock_f
     fetcher.db = mock_db_manager_instance
 
     # Act
-    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column)
+    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column, None)
     sorted_result_df = result_df.sort_values(by=result_df.columns.tolist()).reset_index(drop=True)
     sorted_expected_result_df = expected_result_df.sort_values(by=expected_result_df.columns.tolist()).reset_index(drop=True)
 
@@ -313,8 +313,8 @@ def test_fetch_data_empty_one_db(mock_db_manager_class, mock_build_query, mock_f
     ], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call('table1', filters, limit, date_column),
-        call('table2', filters, limit, date_column)
+        call('table1', filters, limit, date_column, None),
+        call('table2', filters, limit, date_column, None)
     ], any_order=True)
     assert mock_fetch_data.call_count == 2
     mock_fetch_data.assert_has_calls([
@@ -359,15 +359,15 @@ def test_fetch_no_data_any_db(mock_db_manager_class, mock_build_query, mock_fetc
     fetcher.db = mock_db_manager_instance
 
     # Act
-    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column)
+    result_df = fetcher.fetch(['database1', 'database2'], filters, limit, date_column, None)
 
     # Assert
     assert mock_db_manager_instance.get_engine.call_count == 2
     mock_db_manager_instance.get_engine.assert_has_calls([call('database1'), call('database2')], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call('table1', filters, limit, date_column),
-        call('table2', filters, limit, date_column)
+        call('table1', filters, limit, date_column, None),
+        call('table2', filters, limit, date_column, None)
     ], any_order=True)
     assert mock_fetch_data.call_count == 2
     mock_fetch_data.assert_has_calls([

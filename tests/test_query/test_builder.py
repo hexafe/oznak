@@ -244,3 +244,137 @@ def test_build_query_invalid_date_column_name():
     with pytest.raises(ValueError, match="Invalid date column name"):
         build_query(table, filters, limit=limit, date_column=date_column)
 
+""" Unit tests for --select-column functionality """
+
+def test_build_query_with_select_columns_list():
+    """
+    Test building a query with a specific list fo columns selected
+    Expected: Query should start with SELECT col1, col2, ...
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["RefName = ABC123"]
+    columns = ["RefName", "Date", "Status"]
+    limit = 10
+    date_column = "Date"
+
+    expected_select_clause = "SELECT `RefName`, `Date`, `Status`"
+    expected_query_body = " FROM `my_table` WHERE `RefName` = :param_0 ORDER BY `Date` DESC LIMIT 10"
+    expected_query = expected_select_clause + expected_query_body
+    expected_params = {"param_0": "ABC123"}
+
+    # Act
+    query, params = build_query(table, filters, limit, date_column, columns)
+
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_with_select_columns_no_filters_no_limit():
+    """
+    Test building a query with columns selected but no filters or limit
+    Expected: Query should be SELECT col1, col2, ... FROM table
+    """
+    # Arrange
+    table = "my_table"
+    filters = []
+    columns = ["ID", "Name"]
+    limit = None # NO LIMIT :D
+    date_column = "Date"
+
+    expected_query = "SELECT `ID`, `Name` FROM `my_table`"
+    expected_params = {}
+
+    # Act
+    query, params = build_query(table, filters, limit, date_column, columns)
+
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_with_select_columns_and_filters():
+    """
+    Test building a query with columns selected and filters applied
+    Expected: Query should be SELECT col1, ... FROM table WHERE ...
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["Status = ACTIVE", "Date >= 2025-01-01"]
+    columns = ["RefName", "Status", "Date"]
+    limit = None
+    date_column = "Date"
+
+    expected_query = "SELECT `RefName`, `Status`, `Date` FROM `my_table` WHERE `Status` = :param_0 AND `Date` >= :param_1"
+    expected_params = {"param_0": "ACTIVE", "param_1": "2025-01-01"}
+
+    # Act
+    query, params = build_query(table, filters, limit, date_column, columns)
+
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_with_select_columns_and_limit():
+    """
+    Test building a query with columns selected and a limit applied
+    Expected: Query should be SELECT col1, ... FROM table ... ORDER BY ... LIMIT N
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["Status = INACTIVE"]
+    columns = ["RefName", "Timestamp"]
+    limit = 50
+    date_column = "Timestamp"
+
+    expected_query = "SELECT `RefName`, `Timestamp` FROM `my_table` WHERE `Status` = :param_0 ORDER BY `Timestamp` DESC LIMIT 50"
+    expected_params = {"param_0": "INACTIVE"}
+
+    # Act
+    query, params = build_query(table, filters, limit, date_column, columns)
+
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_without_select_columns_still_works():
+    """
+    Test that the default behavior (SELECT *) still works when columns=None or not provided
+    Expected: Query should start with SELECT *
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["RefName LIKE V123%"]
+    # columns = None # This is the default behavior to test
+    limit = 100
+    date_column = "Date"
+
+    expected_query = "SELECT * FROM `my_table` WHERE `RefName` LIKE :param_0 ORDER BY `Date` DESC LIMIT 100"
+    expected_params = {"param_0": "V123%"}
+
+    # Act
+    query, params = build_query(table, filters, limit, date_column, columns=None)
+
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_select_columns_validation():
+    """
+    Test that build_query rejects invalid column names to prevent SQL injection
+    Expected: ValueError should be raised for invalid column names
+    """
+    # Arrange
+    table = "my_table"
+    filters = []
+    invalid_columns = ["RefName", "Date; DROP TABLE users; --"]
+    limit = None
+    date_column = "Date"
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Invalid column name"):
+        build_query(table, filters, limit, date_column, invalid_columns)
+
+    single_invalid_column = ["SomeName' OR '1'='1"]
+    with pytest.raises(ValueError, match="Invalid column name"):
+        build_query(table, filters, limit, date_column, single_invalid_column)
+
