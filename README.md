@@ -1,5 +1,5 @@
 # Oznak
-v0.1.1
+v0.2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
@@ -9,6 +9,7 @@ v0.1.1
 ## Features
 
 - Multi-database loader (MySQL, MSSQL, more to be added)
+- Columns selection for fetching
 - Generic filtering system (LIKE, =, >, <, IN, etc.)
 - Export to CSV/Excel
 - Multi-database data aggregation
@@ -31,7 +32,7 @@ pip install -r requirements.txt
 ## Usage
 ### Basic usage:
 ```bash
-python -m src.main <database1,database2,...> --filter "<column> <operator> <value>" --out <output_file>
+python -m src.main <database1,database2,...> --select-columns "<column1>,<columns2>,<column3>" --filter "<column> <operator> <value>" --out <output_file>
 ```
 
 ### Examples
@@ -45,9 +46,9 @@ python -m src.main database1,database2 --filter "RefName LIKE V123456" --out dat
 python -m src.main database1 --last 1000 --date-col ProductionDate --out recent_data.xlsx
 ```
 
-- Combine multiple filters and fetch data from multiple databases:
+- Combine multiple filters and fetch specific columns data from multiple databases:
 ```bash
-python -m src.main database1,database2,database3 --filter "Status = ACTIVE" --filter "Priority > 5" --filter "ProductionDate > 2025-01-01" -- out filtered_data.csv
+python -m src.main database1,database2,database3 --select-columns "Status,Priority,ProductionDate" --filter "Status = ACTIVE" --filter "Priority > 5" --filter "ProductionDate > 2025-01-01" --out filtered_data.csv
 ```
 
 ## More options and informations
