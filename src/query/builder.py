@@ -107,3 +107,82 @@ def build_query(table: str, filters: list, limit: int = None, date_column: str =
 
     return base_query, params
 
+def build_chunked_query(table: str, filters: list, chunk_size: int, last_value_for_pagination: any = None, pagination_column: str = "id", columns: list = None):
+    """
+    Builds a query to fetch a specific chunk of data based on a unique, indexed column
+
+    Args:
+        table: The table name
+        filters: List of filters
+        chunk_size: Number of rows to fetch per chunk
+        last_value_for_pagination: The value of pagination column for the last value of previous chunk (None for first chunk)
+        pagination_column: The column to use for pagination (should be unique and indexed)
+        columns: Optional list of column names for SELECT
+
+    Returns:
+        A tuple (query_string, params_dict) for the current chunk
+    """
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
+        raise ValueError(f"Invalid table name: {table}")
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", pagination_column):
+        raise ValueError(f"Invalid pagination column name: {pagination_column}")
+    if columns:
+        for col in columns:
+            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
+                raise ValueError(f"Invalid column name: {col}")
+
+    safe_table = f"`{table}`"
+    safe_pagination_col = f"`{pagination_column}`"
+
+    if columns:
+        validated_columns = [f"`{col}`" for col in columns]
+        select_clause = f"SELECT {', '.join(validated_columns)}"
+    else:
+        select_clause = "SELECT *"
+
+    where_conditions = []
+    params = {}
+    param_counter = 0
+
+    for filter_str in filters:
+        column, operator, value = parse_filter_string(filter_str)
+        safe_column = f"`{column}`"
+
+        if operator in ["LIKE", "NOT LIKE"]:
+            param_name = f"param_{param_counter}"
+            where_conditions.append(f"{safe_column} {operator} :{param_name}")
+            params[param_name] = value
+            param_counter += 1
+        elif operator in ["IN", "NOT IN"]:
+            values = [v.strip() for v in value.split(',')]
+            placeholders = []
+            for v in values:
+                param_name = f"param_{param_counter}"
+                placeholders.append(f":{param_name}")
+                params[param_name] = v
+                param_counter += 1
+            where_clause_part = f"({safe_column} {operator} ({','.join(placeholders)}))"
+            where_conditions.append(where_clause_part)
+        elif operator in ["IS", "IS NOT"]:
+            where_conditions.append(f"{safe_column} {operator} {value}")
+        else:
+            param_name = f"param_{param_counter}"
+            where_conditions.append(f"{safe_column} {operator} :{param_name}")
+            params[param_name] = value
+            param_counter += 1
+
+    if last_value_for_pagination is not None:
+        pagination_param_name = f"pagination_param"
+        where_conditions.append(f"{safe_pagination_col} > :{pagination_param_name}")
+        params[pagination_param_name] = last_value_for_pagination
+
+    if where_conditions:
+        where_clause = " AND ".join(where_conditions)
+        full_where = f"WHERE {where_clause}"
+    else:
+        full_where = ""
+
+    query = f"{select_clause} FROM {safe_table} {full_where} ORDER BY {safe_pagination_col} ASC LIMIT {chunk_size}"
+
+    return query, params
+

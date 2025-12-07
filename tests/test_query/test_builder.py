@@ -1,5 +1,5 @@
 import pytest
-from src.query.builder import build_query, parse_filter_string
+from src.query.builder import build_query, build_chunked_query, parse_filter_string
 
 
 """ Tests for parse_filter_string """
@@ -377,4 +377,73 @@ def test_build_query_select_columns_validation():
     single_invalid_column = ["SomeName' OR '1'='1"]
     with pytest.raises(ValueError, match="Invalid column name"):
         build_query(table, filters, limit, date_column, single_invalid_column)
+
+""" Unit tests for chunked fetching """
+
+def test_build_chunked_query_first_chunk():
+    """
+    Test building a query for the first chunk (no last_valie)    
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    chunk_size = 1000
+    last_value = None
+    pagination_column = "timestamp"
+
+    expected_query = "SELECT * FROM `my_table` WHERE `Status` = :param_0 ORDER BY `timestamp` ASC LIMIT 1000"
+    expected_params = {"param_0": "ACTIVE"}
+
+    # Act
+    query, params = build_chunked_query(table, filters, chunk_size, last_value, pagination_column)
+    
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_chunked_query_subsequent_chunk():
+    """
+    Test building a query for a subsequent chunk (with last_value)
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    chunk_size = 1000
+    last_value = "2025-01-01 10:00:00"
+    pagination_column = "timestamp"
+
+    expected_query = "SELECT * FROM `my_table` WHERE `Status` = :param_0 AND `timestamp` > :pagination_param ORDER BY `timestamp` ASC LIMIT 1000"
+    expected_params = {"param_0": "ACTIVE", "pagination_param": "2025-01-01 10:00:00"}
+
+    # Act
+    query, params = build_chunked_query(table, filters, chunk_size, last_value, pagination_column)
+
+    # Assert
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_chunked_query_with_select_columns():
+    """
+    Test building a query for a chunk with specific columns selected
+    """
+    # Arrange
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    chunk_size = 1000
+    last_value = 1337
+    pagination_column = "ID"
+    columns = ["RefName", "Date", "FittingForce"]
+
+    validated_cols = [f"`{col}`" for col in columns]
+    expected_select_clause = f"SELECT {', '.join(validated_cols)}"
+    expected_query = f"{expected_select_clause} FROM `my_table` WHERE `Status` = :param_0 AND `ID` > :pagination_param ORDER BY `ID` ASC LIMIT 1000"
+    expected_params = {"param_0": "ACTIVE", "pagination_param": 1337}
+    
+    # Act
+    query, params = build_chunked_query(table, filters, chunk_size, last_value, pagination_column, columns)
+
+    # Assert
+    assert query.startswith(expected_select_clause)
+    assert query == expected_query
+    assert params == expected_params
 

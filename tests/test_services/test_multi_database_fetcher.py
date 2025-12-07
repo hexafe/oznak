@@ -377,3 +377,54 @@ def test_fetch_no_data_any_db(mock_db_manager_class, mock_build_query, mock_fetc
     assert result_df.empty
     assert result_df.shape[0] == 0
 
+""" Tests for chunked fetching """
+
+@patch("src.services.multi_database_fetcher.export_chunks_streaming")
+@patch("src.services.multi_database_fetcher.fetch_data_chunked")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_database_in_chunks_single_db_success(mock_db_manager_class, mock_fetch_data_chunked, mock_export_chunks_streaming):
+    """
+    Test fetching chunks from a single database
+    """
+    # Arrange
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine = Mock()
+    mock_db_manager_instance.get_engine.return_value = mock_engine
+    mock_db_manager_instance.cfg = {
+        "database1": {"table": "table1"}
+    }
+    
+    database = "database1"
+    filters = ["Status = ACTIVE"]
+    chunk_size = 1000
+    pagination_column = "timestamp"
+    temp_output_file = "temp_test_output.csv"
+    columns = None
+
+    chunk1 = pd.DataFrame({
+        "col1": [1, 2],
+        "col2": ['a', 'b'],
+        "timestamp": ["2025-01-01 10:00:00", "2025-01-01 10:00:01"]
+    })
+    chunk2 = pd.DataFrame({
+        "col1": [3, 4],
+        "col2": ['c', 'd'],
+        "timestamp": ["2025-01-01 10:00:02", "2025-01-01 10:00:03"]
+    })
+    mock_fetch_data_chunked.return_value = [chunk1, chunk2]
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    # Act
+    fetcher.fetch_database_in_chunks(database, filters, chunk_size, temp_output_file, pagination_column, columns)
+
+    # Assert
+    mock_fetch_data_chunked.assert_called_once_with(mock_engine, "table1", filters, chunk_size, pagination_column, columns)
+    mock_export_chunks_streaming.assert_called_once()
+    call_args = mock_export_chunks_streaming.call_args
+    assert call_args[0][0] == [chunk1, chunk2]
+    assert call_args[0][1] == temp_output_file
+
