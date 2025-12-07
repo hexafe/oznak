@@ -47,3 +47,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Scripts
+snapshot_project.sh
+
