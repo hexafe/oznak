@@ -20,7 +20,7 @@ def parse_filter_string(filter_str: str):
 
     # Validate operator (only allow safe operators)
     allowed_operators = {
-        '=', '!=', '<>', '<', '>' '<=', '>=',
+        '=', '!=', '<>', '<', '>', '<=', '>=',
         'LIKE', 'NOT LIKE', 'IN', 'NOT IN',
         'IS', 'IS NOT'
     }
