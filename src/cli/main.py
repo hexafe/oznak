@@ -1,6 +1,6 @@
 import typer
 from src.services.multi_database_fetcher import MultiDatabaseFetcher
-from src.services.filter_parser import parse_filters
+from src.services.filter_parser import normalize_columns, normalize_databases, parse_filters
 from src.storage.exporter import export
 
 app = typer.Typer()
@@ -14,29 +14,20 @@ def load(
         date_col: str = typer.Option("TimeStamp", "--date_col", help="Name of the date/timestamp column for ordering (when using --last)"),
         out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
 ):
-    # Validate inputs
-    if last is not None and (not isinstance(last, int) or last <= 0):
-        print("'last' must be a positive integer")
-        return
-
-    # Validate date column name (basic check, more robust implementation to be done if needed :P)
-    if not date_col.replace('_', '').replace('.', '').isalnum():
-        print(f"Invalid date column name: {date_col}")
-        return
-
     fetcher = MultiDatabaseFetcher()
-    parsed = parse_filters(filters, last)
+
+    try:
+        parsed = parse_filters(filters, last)
+        databases_list = normalize_databases(databases)
+        columns_list = normalize_columns(select_columns)
+    except ValueError as exc:
+        print(str(exc))
+        raise typer.Exit(code=1)
 
     if not parsed["filters"] and parsed["limit"] is None:
         print("No filters or limit specified. This will fetch all data from all tables!")
         if not typer.confirm("Are you sure you want to continue?"):
             return
-
-    databases_list = [database.strip() for database in databases.split(",")]
-
-    columns_list = None
-    if select_columns:
-        columns_list = [col.strip() for col in select_columns.split(',')]
 
     df = fetcher.fetch(databases_list, parsed["filters"], parsed["limit"], date_col, columns_list)
 
@@ -63,10 +54,14 @@ def load_chunked(
         raise typer.Exit(code=1)
 
     fetcher = MultiDatabaseFetcher()
-    databases_list = [db.strip() for db in databases.split(',')]
-    columns_list = [col.strip() for col in select_columns.split(',')] if select_columns else None
 
-    parsed = parse_filters(filters, None)
+    try:
+        parsed = parse_filters(filters, None)
+        databases_list = normalize_databases(databases)
+        columns_list = normalize_columns(select_columns)
+    except ValueError as exc:
+        print(str(exc))
+        raise typer.Exit(code=1)
 
     fetcher.fetch_chunked(databases_list, parsed["filters"], chunk_size, out, pagination_col, columns_list)
 

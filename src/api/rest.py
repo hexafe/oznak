@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
 from src.services.multi_database_fetcher import MultiDatabaseFetcher
+from src.services.filter_parser import normalize_databases
 
 app = FastAPI(title='Oznak MVP API')
 fetcher = MultiDatabaseFetcher()
@@ -11,7 +12,11 @@ def fetch(databases: str = Query(..., description='Comma-separated databases'),
           time_to: Optional[str] = None,
           last_n: Optional[int] = None,
           reference: Optional[str] = None):
-    databases_list = [db.strip() for db in databases.split(',') if db.strip()]
+    try:
+        databases_list = normalize_databases(databases)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     if not databases_list:
         raise HTTPException(status_code=400, detail='databases is required')
     filters = []
