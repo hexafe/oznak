@@ -1,21 +1,37 @@
 import re
 
 
+IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+OPERATOR_PATTERN = re.compile(
+    r"^(?P<column>[a-zA-Z_][a-zA-Z0-9_]*)\s+"
+    r"(?P<operator>IS\s+NOT|NOT\s+LIKE|NOT\s+IN|IS|LIKE|IN|!=|<>|<=|>=|=|<|>)\s+"
+    r"(?P<value>.+)$",
+    re.IGNORECASE,
+)
+
+
 def parse_filter_string(filter_str: str):
     """
     Parse filter string like "RefName LIKE V123456 into (column, operator, value)
     """
-    # Split by spaces but handle quoted values
-    parts = filter_str.split()
-    if len(parts) < 3:
+    normalized_filter = filter_str.strip()
+    if not normalized_filter:
         raise ValueError(f"Invalid filter format: {filter_str}. Expected: 'column operator value'")
 
-    column = parts[0]
-    operator = parts[1].upper()
-    value = " ".join(parts[2:])
+    match = OPERATOR_PATTERN.match(normalized_filter)
+    if not match:
+        parts = normalized_filter.split()
+        if len(parts) >= 3 and IDENTIFIER_PATTERN.match(parts[0]):
+            bad_operator = parts[1].upper()
+            raise ValueError(f"Invalid operator: {bad_operator}")
+        raise ValueError(f"Invalid filter format: {filter_str}. Expected: 'column operator value'")
+
+    column = match.group("column")
+    operator = re.sub(r"\s+", " ", match.group("operator").upper()).strip()
+    value = match.group("value").strip()
 
     # Validate column name - SQL injection protection
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column):
+    if not IDENTIFIER_PATTERN.match(column):
         raise ValueError(f"Invalid column name: {column}")
 
     # Validate operator (only allow safe operators)
@@ -27,10 +43,41 @@ def parse_filter_string(filter_str: str):
     if operator not in allowed_operators:
         raise ValueError(f"Invalid operator: {operator}. Allowed: {', '.join(allowed_operators)}")
 
-    # Optional: add a warning or error for potentially problematic operators in shell context
-    # The shell escaping is the user's responsibility, but to be documented better
+    if not value:
+        raise ValueError(f"Invalid filter format: {filter_str}. Expected: 'column operator value'")
 
     return column, operator, value
+
+
+def normalize_databases(databases: str | list[str]) -> list[str]:
+    if isinstance(databases, str):
+        candidates = [database.strip() for database in databases.split(",")]
+    else:
+        candidates = [str(database).strip() for database in databases]
+
+    normalized = [database for database in candidates if database]
+    invalid = [database for database in normalized if not IDENTIFIER_PATTERN.match(database)]
+    if invalid:
+        raise ValueError(f"Invalid database name(s): {', '.join(invalid)}")
+
+    return normalized
+
+
+def normalize_columns(columns: str | list[str] | None) -> list[str] | None:
+    if columns is None:
+        return None
+
+    if isinstance(columns, str):
+        candidates = [column.strip() for column in columns.split(",")]
+    else:
+        candidates = [str(column).strip() for column in columns]
+
+    normalized = [column for column in candidates if column]
+    invalid = [column for column in normalized if not IDENTIFIER_PATTERN.match(column)]
+    if invalid:
+        raise ValueError(f"Invalid column name(s): {', '.join(invalid)}")
+
+    return normalized
 
 def parse_filters(filters: list = None, last: int = None):
     """
@@ -40,12 +87,11 @@ def parse_filters(filters: list = None, last: int = None):
         filters = []
 
     # Validate filters
-    for f in filters:
-        try:
-            parse_filter_string(f)
-        except ValueError as e:
-            print(f"Invalid filter: {f}. Error: {e}")
-            return []
+    for filter_value in filters:
+        parse_filter_string(filter_value)
+
+    if last is not None and (not isinstance(last, int) or last <= 0):
+        raise ValueError("'last' must be a positive integer")
 
     result = {
         "filters": filters,
@@ -53,4 +99,3 @@ def parse_filters(filters: list = None, last: int = None):
     }
 
     return result
-

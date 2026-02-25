@@ -1,6 +1,7 @@
 import importlib
 
 import pandas as pd
+import pytest
 
 
 def test_rest_module_imports():
@@ -42,3 +43,13 @@ def test_fetch_handler_parses_databases_and_optional_inputs(monkeypatch):
     assert captured["limit"] == 5
     assert response["rows"] == 1
     assert response["data"] == [{"id": 1}]
+
+
+def test_fetch_handler_rejects_invalid_database_name():
+    module = importlib.import_module("src.api.rest")
+
+    with pytest.raises(module.HTTPException) as exc_info:
+        module.fetch(databases="db1,bad-name")
+
+    assert exc_info.value.status_code == 400
+    assert "Invalid database name" in str(exc_info.value.detail)
