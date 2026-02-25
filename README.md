@@ -3,10 +3,16 @@ v0.2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/hexafe/oznak/actions/workflows/ci.yml/badge.svg)](https://github.com/hexafe/oznak/actions/workflows/ci.yml)
 
 *A modular data analysis system for loading, filtering, and processing data from multiple sources.*
 
 ## Features
+
+## Project roadmap
+
+Implementation phases and current status are tracked in `docs/IMPLEMENTATION_ROADMAP.md`.
+
 
 - Multi-database loader (MySQL, MSSQL, more to be added)
 - Columns selection for fetching
