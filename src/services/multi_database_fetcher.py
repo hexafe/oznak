@@ -60,7 +60,7 @@ class MultiDatabaseFetcher:
                     print(f"Unexpected error processing result for {database}: {e}")
 
         if not frames:
-            print(f"No data fetched from any database")
+            print("No data fetched from any database")
             return pd.DataFrame()
 
         print(f"Combining data from {len(frames)} databases...")

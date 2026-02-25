@@ -1,15 +1,19 @@
+from typing import Any
+
 import pandas as pd
 from sqlalchemy import text
 
+from src.query.builder import build_chunked_query
 
-def fetch_data(engine, query: str, params: dict = None):
+
+def fetch_data(engine: Any, query: str, params: dict[str, Any] | None = None) -> pd.DataFrame:
     """
     Fetch data using SQLAlchemy engine and return a pandas DataFrame
     Expects query string with :param_name placeholders and a params dictionary
     Uses sqlalchemy.text() for the query and params= keyword for pandas
     """
     try:
-        print(f"Executing query on database...")
+        print("Executing query on database...")
         # Use pandas with the SQLAlchemy engine
         if params:
             df = pd.read_sql(text(query), engine, params=params)
@@ -21,7 +25,7 @@ def fetch_data(engine, query: str, params: dict = None):
         print(f"Error executing query: {e}")
         return pd.DataFrame()
 
-def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagination_column: str = "id", columns: list = None):
+def fetch_data_chunked(engine: Any, table: str, filters: list[str], chunk_size: int, pagination_column: str = "id", columns: list[str] | None = None):
     """
     Fetches data in chunks using unique, indexed column for pagination
 
@@ -51,7 +55,7 @@ def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagin
             break
 
         if df.empty:
-            print(f"Reached end of data")
+            print("Reached end of data")
             break
 
         print(f"Fetched {len(df)} reacords in this chunk")
@@ -60,4 +64,3 @@ def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagin
         last_value = df[pagination_column].iloc[-1]
 
         print(f"   └── Last {pagination_column} in chunk: {last_value}")
-

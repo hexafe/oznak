@@ -1,4 +1,3 @@
-import pandas as pd
 
 
 def export(df, path: str):
@@ -25,7 +24,7 @@ def export_chunks_streaming(chunks_generator, path: str, write_header: bool = Tr
         write_header: If True, writes the header for the first chunk. Subsequent chunks append without header
     """
     if not path.endswith(".csv"):
-        raise ValueError(f"Streaming export is currently only supported for CSV format")
+        raise ValueError("Streaming export is currently only supported for CSV format")
 
     first_chunk = True
     mode = 'w'
