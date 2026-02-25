@@ -56,3 +56,13 @@ def test_normalize_columns_parses_and_validates_string_input():
 def test_normalize_columns_rejects_invalid_names():
     with pytest.raises(ValueError, match="Invalid column name"):
         normalize_columns("RefName, bad.column")
+
+
+def test_parse_filters_normalizes_in_values():
+    parsed = parse_filters(["RefName IN A, B , ,C"], last=None)
+    assert parsed["filters"] == ["RefName IN A, B, C"]
+
+
+def test_parse_filters_rejects_is_with_unsupported_value():
+    with pytest.raises(ValueError, match="only supports NULL, TRUE, or FALSE"):
+        parse_filters(["DeletedAt IS unknown"], last=None)

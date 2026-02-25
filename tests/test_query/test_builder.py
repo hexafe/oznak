@@ -59,7 +59,7 @@ def test_parse_filter_string_invalid_column_name():
     invalid_filter_str = "RefName; DROP TABLE users; -- = 5"
 
     # Act & Assert
-    with pytest.raises(ValueError, match="Invalid column name"):
+    with pytest.raises(ValueError, match="Invalid filter format"):
         parse_filter_string(invalid_filter_str)
 
 def test_parse_filter_string_invalid_operator():
@@ -447,3 +447,23 @@ def test_build_chunked_query_with_select_columns():
     assert query == expected_query
     assert params == expected_params
 
+
+
+def test_build_query_not_like_filter():
+    table = "my_table"
+    filters = ["RefName NOT LIKE V123%"]
+
+    query, params = build_query(table, filters)
+
+    assert query == "SELECT * FROM `my_table` WHERE `RefName` NOT LIKE :param_0"
+    assert params == {"param_0": "V123%"}
+
+
+def test_build_query_is_not_filter():
+    table = "my_table"
+    filters = ["DeletedAt IS NOT NULL"]
+
+    query, params = build_query(table, filters)
+
+    assert query == "SELECT * FROM `my_table` WHERE `DeletedAt` IS NOT NULL"
+    assert params == {}
