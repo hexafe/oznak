@@ -79,22 +79,40 @@ def normalize_columns(columns: str | list[str] | None) -> list[str] | None:
 
     return normalized
 
-def parse_filters(filters: list = None, last: int = None):
+def _normalize_filter_value(operator: str, value: str) -> str:
+    if operator in {"IN", "NOT IN"}:
+        values = [candidate.strip() for candidate in value.split(",") if candidate.strip()]
+        if not values:
+            raise ValueError(f"{operator} operator requires at least one value")
+        return ", ".join(values)
+
+    if operator in {"IS", "IS NOT"}:
+        normalized_value = value.upper()
+        if normalized_value not in {"NULL", "TRUE", "FALSE"}:
+            raise ValueError(f"{operator} operator only supports NULL, TRUE, or FALSE values")
+        return normalized_value
+
+    return value
+
+
+def parse_filters(filters: list[str] | None = None, last: int = None):
     """
     Parse filter strings and return them as a list
     """
     if not filters:
         filters = []
 
-    # Validate filters
+    normalized_filters = []
     for filter_value in filters:
-        parse_filter_string(filter_value)
+        column, operator, value = parse_filter_string(filter_value)
+        normalized_value = _normalize_filter_value(operator, value)
+        normalized_filters.append(f"{column} {operator} {normalized_value}")
 
     if last is not None and (not isinstance(last, int) or last <= 0):
         raise ValueError("'last' must be a positive integer")
 
     result = {
-        "filters": filters,
+        "filters": normalized_filters,
         "limit": last
     }
 
