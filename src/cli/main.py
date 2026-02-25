@@ -64,9 +64,11 @@ def load_chunked(
 
     fetcher = MultiDatabaseFetcher()
     databases_list = [db.strip() for db in databases.split(',')]
-    columns_list = [col.strip() for col in select_columns.splut(',')] if select_columns else None
+    columns_list = [col.strip() for col in select_columns.split(',')] if select_columns else None
 
-    fetcher.fetch_chunked(databases_list, filters, chunk_size, out, pagination_column, columns_list)
+    parsed = parse_filters(filters, None)
+
+    fetcher.fetch_chunked(databases_list, parsed["filters"], chunk_size, out, pagination_col, columns_list)
 
     print(f"Data from {databases_list} loaded in chunks and exported to {out}")
 
