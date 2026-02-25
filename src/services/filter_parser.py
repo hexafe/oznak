@@ -95,7 +95,23 @@ def _normalize_filter_value(operator: str, value: str) -> str:
     return value
 
 
-def parse_filters(filters: list[str] | None = None, last: int = None):
+def _normalize_typed_filter(filter_item: dict) -> str:
+    required_keys = {"field", "op", "value"}
+    missing_keys = sorted(required_keys - set(filter_item.keys()))
+    if missing_keys:
+        raise ValueError(f"Invalid filter object: missing keys: {', '.join(missing_keys)}")
+
+    extra_keys = sorted(set(filter_item.keys()) - required_keys)
+    if extra_keys:
+        raise ValueError(f"Invalid filter object: unsupported keys: {', '.join(extra_keys)}")
+
+    field = str(filter_item["field"]).strip()
+    operator = str(filter_item["op"]).strip()
+    value = str(filter_item["value"]).strip()
+    return f"{field} {operator} {value}"
+
+
+def parse_filters(filters: list[str | dict] | None = None, last: int = None):
     """
     Parse filter strings and return them as a list
     """
@@ -104,7 +120,17 @@ def parse_filters(filters: list[str] | None = None, last: int = None):
 
     normalized_filters = []
     for filter_value in filters:
-        column, operator, value = parse_filter_string(filter_value)
+        if isinstance(filter_value, dict):
+            candidate_filter = _normalize_typed_filter(filter_value)
+        elif isinstance(filter_value, str):
+            candidate_filter = filter_value
+        else:
+            raise ValueError(
+                f"Invalid filter type: {type(filter_value).__name__}. "
+                "Expected string or object with field/op/value"
+            )
+
+        column, operator, value = parse_filter_string(candidate_filter)
         normalized_value = _normalize_filter_value(operator, value)
         normalized_filters.append(f"{column} {operator} {normalized_value}")
 

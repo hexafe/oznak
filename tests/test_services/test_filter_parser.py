@@ -66,3 +66,29 @@ def test_parse_filters_normalizes_in_values():
 def test_parse_filters_rejects_is_with_unsupported_value():
     with pytest.raises(ValueError, match="only supports NULL, TRUE, or FALSE"):
         parse_filters(["DeletedAt IS unknown"], last=None)
+
+
+def test_parse_filters_accepts_typed_filter_object():
+    parsed = parse_filters([
+        {"field": "RefName", "op": "LIKE", "value": "ABC%"},
+        {"field": "Metric", "op": ">=", "value": "10"},
+    ], last=None)
+    assert parsed["filters"] == ["RefName LIKE ABC%", "Metric >= 10"]
+
+
+def test_parse_filters_rejects_typed_filter_missing_keys():
+    with pytest.raises(ValueError, match="missing keys: value"):
+        parse_filters([{"field": "RefName", "op": "LIKE"}], last=None)
+
+
+def test_parse_filters_rejects_typed_filter_extra_keys():
+    with pytest.raises(ValueError, match="unsupported keys: foo"):
+        parse_filters([
+            {"field": "RefName", "op": "LIKE", "value": "ABC%", "foo": "bar"}
+        ], last=None)
+
+
+def test_parse_filters_rejects_unsupported_filter_type():
+    with pytest.raises(ValueError, match="Invalid filter type"):
+        parse_filters([123], last=None)
+
