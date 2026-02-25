@@ -53,3 +53,13 @@ def test_fetch_handler_rejects_invalid_database_name():
 
     assert exc_info.value.status_code == 400
     assert "Invalid database name" in str(exc_info.value.detail)
+
+
+def test_fetch_handler_rejects_invalid_last_n():
+    module = importlib.import_module("src.api.rest")
+
+    with pytest.raises(module.HTTPException) as exc_info:
+        module.fetch(databases="db1", last_n=-1)
+
+    assert exc_info.value.status_code == 400
+    assert "'last' must be a positive integer" in str(exc_info.value.detail)
