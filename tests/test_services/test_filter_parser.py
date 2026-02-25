@@ -88,7 +88,50 @@ def test_parse_filters_rejects_typed_filter_extra_keys():
         ], last=None)
 
 
+def test_parse_filters_accepts_typed_filter_numeric_and_bool_values():
+    parsed = parse_filters([
+        {"field": "Metric", "op": ">=", "value": 10},
+        {"field": "IsActive", "op": "=", "value": True},
+    ], last=None)
+    assert parsed["filters"] == ["Metric >= 10", "IsActive = True"]
+
+
+def test_parse_filters_accepts_typed_filter_in_list_values():
+    parsed = parse_filters([
+        {"field": "Status", "op": "IN", "value": ["ACTIVE", "PENDING", " "]}
+    ], last=None)
+    assert parsed["filters"] == ["Status IN ACTIVE, PENDING"]
+
+
+def test_parse_filters_rejects_typed_filter_list_for_non_in_operator():
+    with pytest.raises(ValueError, match="does not support list values"):
+        parse_filters([
+            {"field": "Metric", "op": ">", "value": [1, 2]}
+        ], last=None)
+
+
+def test_parse_filters_rejects_typed_filter_empty_list_for_in_operator():
+    with pytest.raises(ValueError, match="requires at least one value"):
+        parse_filters([
+            {"field": "Status", "op": "IN", "value": ["", " "]}
+        ], last=None)
+
+
+def test_parse_filters_rejects_typed_filter_empty_field_or_op():
+    with pytest.raises(ValueError, match="field must be a non-empty string"):
+        parse_filters([{"field": " ", "op": "=", "value": "A"}], last=None)
+
+    with pytest.raises(ValueError, match="op must be a non-empty string"):
+        parse_filters([{"field": "RefName", "op": " ", "value": "A"}], last=None)
+
+
+def test_parse_filters_rejects_typed_filter_nested_value_types():
+    with pytest.raises(ValueError, match="value must be a scalar or list"):
+        parse_filters([
+            {"field": "RefName", "op": "=", "value": {"raw": "ABC"}}
+        ], last=None)
+
+
 def test_parse_filters_rejects_unsupported_filter_type():
     with pytest.raises(ValueError, match="Invalid filter type"):
         parse_filters([123], last=None)
-

@@ -105,9 +105,42 @@ def _normalize_typed_filter(filter_item: dict[str, object]) -> str:
     if extra_keys:
         raise ValueError(f"Invalid filter object: unsupported keys: {', '.join(extra_keys)}")
 
-    field = str(filter_item["field"]).strip()
-    operator = str(filter_item["op"]).strip()
-    value = str(filter_item["value"]).strip()
+    field = filter_item["field"]
+    operator = filter_item["op"]
+    value = filter_item["value"]
+
+    if not isinstance(field, str) or not field.strip():
+        raise ValueError("Invalid filter object: field must be a non-empty string")
+
+    if not isinstance(operator, str) or not operator.strip():
+        raise ValueError("Invalid filter object: op must be a non-empty string")
+
+    field = field.strip()
+    operator = operator.strip()
+    normalized_operator = re.sub(r"\s+", " ", operator.upper()).strip()
+
+    if isinstance(value, (dict, tuple, set)):
+        raise ValueError("Invalid filter object: value must be a scalar or list")
+
+    if isinstance(value, list):
+        if normalized_operator not in {"IN", "NOT IN"}:
+            raise ValueError(
+                f"Invalid filter object: operator {normalized_operator} does not support list values"
+            )
+        normalized_values = [str(item).strip() for item in value if str(item).strip()]
+        if not normalized_values:
+            raise ValueError(
+                f"Invalid filter object: operator {normalized_operator} requires at least one value"
+            )
+        value = ", ".join(normalized_values)
+    elif value is None:
+        value = "NULL"
+    else:
+        value = str(value).strip()
+
+    if not value:
+        raise ValueError("Invalid filter object: value must be non-empty")
+
     return f"{field} {operator} {value}"
 
 
