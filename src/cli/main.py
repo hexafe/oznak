@@ -1,6 +1,6 @@
 import typer
 from src.services.multi_database_fetcher import MultiDatabaseFetcher
-from src.services.filter_parser import normalize_columns, normalize_databases, parse_filters
+from src.services.request_preprocessor import preprocess_fetch_request
 from src.storage.exporter import export
 
 app = typer.Typer()
@@ -17,19 +17,22 @@ def load(
     fetcher = MultiDatabaseFetcher()
 
     try:
-        parsed = parse_filters(filters, last)
-        databases_list = normalize_databases(databases)
-        columns_list = normalize_columns(select_columns)
+        prepared = preprocess_fetch_request(
+            databases=databases,
+            filters=filters,
+            last=last,
+            select_columns=select_columns,
+        )
     except ValueError as exc:
         print(str(exc))
         raise typer.Exit(code=1)
 
-    if not parsed["filters"] and parsed["limit"] is None:
+    if not prepared["filters"] and prepared["limit"] is None:
         print("No filters or limit specified. This will fetch all data from all tables!")
         if not typer.confirm("Are you sure you want to continue?"):
             return
 
-    df = fetcher.fetch(databases_list, parsed["filters"], parsed["limit"], date_col, columns_list)
+    df = fetcher.fetch(prepared["databases"], prepared["filters"], prepared["limit"], date_col, prepared["columns"])
 
     if df.empty:
         print("No data to export")
@@ -56,16 +59,19 @@ def load_chunked(
     fetcher = MultiDatabaseFetcher()
 
     try:
-        parsed = parse_filters(filters, None)
-        databases_list = normalize_databases(databases)
-        columns_list = normalize_columns(select_columns)
+        prepared = preprocess_fetch_request(
+            databases=databases,
+            filters=filters,
+            last=None,
+            select_columns=select_columns,
+        )
     except ValueError as exc:
         print(str(exc))
         raise typer.Exit(code=1)
 
-    fetcher.fetch_chunked(databases_list, parsed["filters"], chunk_size, out, pagination_col, columns_list)
+    fetcher.fetch_chunked(prepared["databases"], prepared["filters"], chunk_size, out, pagination_col, prepared["columns"])
 
-    print(f"Data from {databases_list} loaded in chunks and exported to {out}")
+    print(f"Data from {prepared['databases']} loaded in chunks and exported to {out}")
 
 
 if __name__ == "__main__":

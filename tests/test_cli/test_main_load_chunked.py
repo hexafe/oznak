@@ -16,7 +16,6 @@ def test_load_chunked_parses_arguments_and_calls_fetcher(monkeypatch):
             captured["columns"] = columns
 
     monkeypatch.setattr(module, "MultiDatabaseFetcher", lambda: DummyFetcher())
-    monkeypatch.setattr(module, "parse_filters", lambda filters, last: {"filters": filters, "limit": last})
 
     module.load_chunked(
         databases="db_a, db_b",
