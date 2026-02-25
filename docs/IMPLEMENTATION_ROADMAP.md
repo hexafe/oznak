@@ -1,23 +1,25 @@
 # Oznak Implementation Roadmap
 
-_Last updated: 2026-02-25_
+_Last updated: 2026-02-25 (refreshed)_
 
 ## Repository review summary
 
 Current strengths:
 - Core modular structure is already present (`db`, `query`, `services`, `cli`, `api`, `storage`).
 - Unit and smoke tests exist for query and multi-database fetcher flows.
+- CI pipeline is present and running tests in `.github/workflows/ci.yml`.
+- Test invocation is stable via `PYTHONPATH: .` in CI and `pytest.ini`.
 
 Current gaps identified:
-- No CI pipeline in repository to run tests automatically.
-- Test discovery/import requires path setup (`src` is not on `PYTHONPATH` by default).
-- Project backlog exists (`TODO`) but no structured phased delivery plan with ownership-ready next actions.
+- No lint/type-check stage is configured in CI (for example `ruff`, `mypy`, or `pyright`).
+- No API contract-test coverage is present (schema/contract regression checks are missing).
+- CLI and API regression suites are not yet implemented beyond current smoke-level checks.
 
 ## Phase plan
 
 | Phase | Scope | Status | Next step |
 |---|---|---|---|
-| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Extend CI with linting (`ruff`) and formatting checks once tooling is added to dependencies. |
+| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Add lint/type checks to CI and establish API/CLI regression coverage as the next quality gate. |
 | Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟡 Planned | Add typed validation layer and expand test matrix for malformed filters and unsupported operators. |
 | Phase 2 | Multi-database orchestration resilience (timeouts, partial failures, observability) | 🟡 Planned | Introduce structured logging and per-database execution metrics surfaced in CLI/API output. |
 | Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟡 Planned | Publish explicit API schema examples and add CLI golden-path + failure-path integration tests. |
@@ -36,3 +38,10 @@ For each new feature merged into the repository:
 - Update roadmap on every feature PR.
 - Re-evaluate priorities at least once per sprint.
 - Promote any blocked phase with explicit blocker notes and mitigation steps.
+
+## Evidence checked
+
+- `.github/workflows/ci.yml`
+- `pytest.ini`
+- `requirements.txt`
+- `tests/test_smoke.py`
