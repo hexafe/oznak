@@ -1,9 +1,10 @@
 import re
+from typing import Any
 
 from src.services.filter_parser import parse_filter_string
 
 
-def build_query(table: str, filters: list[str], limit: int = None, date_column: str = "TimeStamp", columns: list[str] = None):
+def build_query(table: str, filters: list[str], limit: int | None = None, date_column: str = "TimeStamp", columns: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     """
     Build a SQL query with generic filters
     filters: list of filter strings like ["RefName LIKE V123456", "Date >= 2025-01-01"]
@@ -78,10 +79,10 @@ def build_chunked_query(
     table: str,
     filters: list[str],
     chunk_size: int,
-    last_value_for_pagination: any = None,
+    last_value_for_pagination: Any = None,
     pagination_column: str = "id",
-    columns: list[str] = None,
-):
+    columns: list[str] | None = None,
+) -> tuple[str, dict[str, Any]]:
     """
     Builds a query to fetch a specific chunk of data based on a unique, indexed column.
     """

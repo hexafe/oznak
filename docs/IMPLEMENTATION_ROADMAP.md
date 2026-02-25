@@ -11,7 +11,7 @@ Current strengths:
 - Test invocation is stable via `PYTHONPATH: .` in CI and `pytest.ini`.
 
 Current gaps identified:
-- No lint/type-check stage is configured in CI (for example `ruff`, `mypy`, or `pyright`).
+- CI now includes a baseline lint/type stage (`ruff` on `src/` and `mypy` on typed query/filter modules); coverage should be expanded across remaining modules.
 - No API contract-test coverage is present (schema/contract regression checks are missing).
 - CLI and API regression suites are not yet implemented beyond current smoke-level checks.
 
@@ -19,7 +19,7 @@ Current gaps identified:
 
 | Phase | Scope | Status | Next step |
 |---|---|---|---|
-| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Add lint/type checks to CI and establish API/CLI regression coverage as the next quality gate. |
+| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Expand lint/type coverage beyond core query/filter modules and establish API/CLI regression coverage as the next quality gate. |
 | Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟡 Planned | Add typed validation layer and expand test matrix for malformed filters and unsupported operators. |
 | Phase 2 | Multi-database orchestration resilience (timeouts, partial failures, observability) | 🟡 Planned | Introduce structured logging and per-database execution metrics surfaced in CLI/API output. |
 | Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟡 Planned | Publish explicit API schema examples and add CLI golden-path + failure-path integration tests. |

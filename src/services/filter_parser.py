@@ -95,7 +95,7 @@ def _normalize_filter_value(operator: str, value: str) -> str:
     return value
 
 
-def _normalize_typed_filter(filter_item: dict) -> str:
+def _normalize_typed_filter(filter_item: dict[str, object]) -> str:
     required_keys = {"field", "op", "value"}
     missing_keys = sorted(required_keys - set(filter_item.keys()))
     if missing_keys:
@@ -111,7 +111,7 @@ def _normalize_typed_filter(filter_item: dict) -> str:
     return f"{field} {operator} {value}"
 
 
-def parse_filters(filters: list[str | dict] | None = None, last: int = None):
+def parse_filters(filters: list[str | dict[str, object]] | None = None, last: int | None = None) -> dict[str, list[str] | int | None]:
     """
     Parse filter strings and return them as a list
     """

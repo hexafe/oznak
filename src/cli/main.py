@@ -50,7 +50,7 @@ def load_chunked(
     Load data in chunks from specified databases, applying filters and optional column selection, and export directly to a file
     """
     if chunk_size <= 0:
-        print(f"'chunk_size' must be a positive integer")
+        print("'chunk_size' must be a positive integer")
         raise typer.Exit(code=1)
 
     fetcher = MultiDatabaseFetcher()
