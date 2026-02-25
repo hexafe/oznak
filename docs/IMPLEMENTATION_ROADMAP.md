@@ -26,6 +26,16 @@ Current gaps identified:
 | Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟡 Planned | Add export profile configuration and tests for column typing, ordering, and file naming strategy. |
 | Phase 5 | Deployment and operations readiness (container hardening, env templates, release process) | 🟡 Planned | Add release checklist, semantic version workflow, and deployment docs for dev/staging/prod environments. |
 
+
+## Backlog mapping
+
+The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-sized work items. Keep roadmap planning and backlog IDs synchronized by updating both files together whenever priorities or phase targeting changes.
+
+| Backlog ID | Current roadmap phase alignment | Synchronization note |
+|---|---|---|
+| BL-001 | Phase 3 — API and CLI productization | Maps to Phase 3 UX polish/productization work; update this row if UX scope shifts to a dedicated frontend phase. |
+| BL-002 | Phase 1 — Query subsystem hardening | Maps to Phase 1 parser/validation hardening; keep aligned with filter validation and query normalization PR slices. |
+
 ## Planned phase delivery slices
 
 ### Phase 1 — Query subsystem hardening
