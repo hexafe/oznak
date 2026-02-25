@@ -216,7 +216,24 @@ def test_build_query_greater_than_filter():
     assert query == expected_query
     assert params == expected_params
 
-#TODO: add more tests for all operators <, >=, <=, !=, IS, IS NOT
+@pytest.mark.parametrize(
+    ("filter_expression", "expected_condition", "expected_params"),
+    [
+        ("Value < 100", "`Value` < :param_0", {"param_0": "100"}),
+        ("Metric >= 42", "`Metric` >= :param_0", {"param_0": "42"}),
+        ("Metric <= 42", "`Metric` <= :param_0", {"param_0": "42"}),
+        ("Status != INACTIVE", "`Status` != :param_0", {"param_0": "INACTIVE"}),
+        ("DeletedAt IS NULL", "`DeletedAt` IS NULL", {}),
+        ("DeletedAt IS NOT NULL", "`DeletedAt` IS NOT NULL", {}),
+    ],
+)
+def test_build_query_operator_matrix(filter_expression, expected_condition, expected_params):
+    table = "my_table"
+
+    query, params = build_query(table, [filter_expression])
+
+    assert query == f"SELECT * FROM `{table}` WHERE {expected_condition}"
+    assert params == expected_params
 
 def test_build_query_invalid_table_name():
     """
