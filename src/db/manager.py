@@ -2,6 +2,8 @@ import yaml
 from sqlalchemy import create_engine
 from src.utils.env import get_credentials
 from config.settings import CONFIG_PATH
+from src.db.connectors.mysql_connector import connect_mysql
+from src.db.connectors.mssql_connector import connect_mssql
 
 
 class DBManager:
@@ -23,17 +25,24 @@ class DBManager:
         # Build connection string based on database type
         if entry["type"] == "mysql":
             # Using PyMySQL driver for compatibility with SQLAlchemy
-            conn_str = f"mysql+pymysql://{user}:{password}@{entry["host"]}:{entry["port"]}/{entry["database"]}"
+            conn_str = (
+                f"mysql+pymysql://{user}:{password}@"
+                f"{entry['host']}:{entry['port']}/{entry['database']}"
+            )
         elif entry["type"] == "mssql":
             # Using pyodbc driver
-            conn_str = f"mssql+pyodbc://{user}:{password}@{entry['host']}:{entry['port']}/{entry['database']}?driver=ODBC+Driver+17+for+SQL+Server"
+            conn_str = (
+                f"mssql+pyodbc://{user}:{password}@"
+                f"{entry['host']}:{entry['port']}/{entry['database']}"
+                "?driver=ODBC+Driver+17+for+SQL+Server"
+            )
         else:
-            raise ValueError(f"Unsupported DB type: {entry["type"]}")
+            raise ValueError(f"Unsupported DB type: {entry['type']}")
 
         engine = create_engine(
             conn_str,
-            echo=False, # For debugging
-            pool_pre_ping=True, # Verify connection before use
+            echo=False,  # For debugging
+            pool_pre_ping=True,  # Verify connection before use
             # Add other options as needed: pool_size, max_overflow, etc
         )
 
@@ -54,4 +63,3 @@ class DBManager:
             return connect_mssql(entry, user, password)
 
         raise ValueError(f"Unsupported DB type: {entry['type']}")
-
