@@ -451,7 +451,7 @@ def test_build_chunked_query_with_select_columns():
     pagination_column = "ID"
     columns = ["RefName", "Date", "FittingForce"]
 
-    validated_cols = [f"`{col}`" for col in columns]
+    validated_cols = [f"`{col}`" for col in columns + ["ID"]]
     expected_select_clause = f"SELECT {', '.join(validated_cols)}"
     expected_query = f"{expected_select_clause} FROM `my_table` WHERE `Status` = :param_0 AND `ID` > :pagination_param ORDER BY `ID` ASC LIMIT 1000"
     expected_params = {"param_0": "ACTIVE", "pagination_param": 1337}
@@ -464,6 +464,7 @@ def test_build_chunked_query_with_select_columns():
     assert query == expected_query
     assert params == expected_params
 
+<<<<<<< HEAD
 
 
 def test_build_query_not_like_filter():
@@ -484,3 +485,75 @@ def test_build_query_is_not_filter():
 
     assert query == "SELECT * FROM `my_table` WHERE `DeletedAt` IS NOT NULL"
     assert params == {}
+=======
+def test_build_chunked_query_adds_pagination_column_when_missing():
+    """
+    Test that the pagination column is always included in chunked queries
+    even when the user did not request it explicitly.
+    """
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    chunk_size = 1000
+    last_value = None
+    pagination_column = "ID"
+    columns = ["RefName", "Date"]
+
+    expected_query = "SELECT `RefName`, `Date`, `ID` FROM `my_table` WHERE `Status` = :param_0 ORDER BY `ID` ASC LIMIT 1000"
+    expected_params = {"param_0": "ACTIVE"}
+
+    query, params = build_chunked_query(table, filters, chunk_size, last_value, pagination_column, columns)
+
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_with_limit_mssql():
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    limit = 50
+    date_column = "CreatedAt"
+
+    expected_query = "SELECT TOP 50 * FROM [my_table] WHERE [Status] = :param_0 ORDER BY [CreatedAt] DESC"
+    expected_params = {"param_0": "ACTIVE"}
+
+    query, params = build_query(table, filters, limit=limit, date_column=date_column, db_type="mssql")
+
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_query_with_select_columns_mssql():
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    columns = ["RefName", "CreatedAt"]
+
+    expected_query = "SELECT [RefName], [CreatedAt] FROM [my_table] WHERE [Status] = :param_0"
+    expected_params = {"param_0": "ACTIVE"}
+
+    query, params = build_query(table, filters, columns=columns, db_type="mssql")
+
+    assert query == expected_query
+    assert params == expected_params
+
+def test_build_chunked_query_mssql():
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    chunk_size = 1000
+    last_value = 1337
+    pagination_column = "ID"
+    columns = ["RefName", "Date"]
+
+    expected_query = "SELECT TOP 1000 [RefName], [Date], [ID] FROM [my_table] WHERE [Status] = :param_0 AND [ID] > :pagination_param ORDER BY [ID] ASC"
+    expected_params = {"param_0": "ACTIVE", "pagination_param": 1337}
+
+    query, params = build_chunked_query(
+        table,
+        filters,
+        chunk_size,
+        last_value,
+        pagination_column,
+        columns,
+        db_type="mssql",
+    )
+
+    assert query == expected_query
+    assert params == expected_params
+>>>>>>> 2af6b61 (Stabilize runtime surface and chunked fetching)

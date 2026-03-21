@@ -1,9 +1,12 @@
 import yaml
+from urllib.parse import quote_plus
+
 from sqlalchemy import create_engine
-from src.utils.env import get_credentials
+
 from config.settings import CONFIG_PATH
-from src.db.connectors.mysql_connector import connect_mysql
 from src.db.connectors.mssql_connector import connect_mssql
+from src.db.connectors.mysql_connector import connect_mysql
+from src.utils.env import get_credentials
 
 
 class DBManager:
@@ -21,33 +24,41 @@ class DBManager:
 
         entry = self.cfg[database]
         user, password = get_credentials(database)
+        db_type = entry["type"]
 
-        # Build connection string based on database type
-        if entry["type"] == "mysql":
-            # Using PyMySQL driver for compatibility with SQLAlchemy
+        if not user or not password:
+            raise ValueError(f"Missing credentials for database: {database}")
+
+        encoded_user = quote_plus(user)
+        encoded_password = quote_plus(password)
+
+        if db_type == "mysql":
             conn_str = (
-                f"mysql+pymysql://{user}:{password}@"
-                f"{entry['host']}:{entry['port']}/{entry['database']}"
+                f"mysql+pymysql://{encoded_user}:{encoded_password}"
+                f"@{entry['host']}:{entry['port']}/{entry['database']}"
             )
-        elif entry["type"] == "mssql":
-            # Using pyodbc driver
+        elif db_type == "mssql":
             conn_str = (
-                f"mssql+pyodbc://{user}:{password}@"
-                f"{entry['host']}:{entry['port']}/{entry['database']}"
+                f"mssql+pyodbc://{encoded_user}:{encoded_password}"
+                f"@{entry['host']}:{entry['port']}/{entry['database']}"
                 "?driver=ODBC+Driver+17+for+SQL+Server"
             )
         else:
-            raise ValueError(f"Unsupported DB type: {entry['type']}")
+            raise ValueError(f"Unsupported DB type: {db_type}")
 
         engine = create_engine(
             conn_str,
-            echo=False,  # For debugging
-            pool_pre_ping=True,  # Verify connection before use
-            # Add other options as needed: pool_size, max_overflow, etc
+            echo=False,
+            pool_pre_ping=True,
         )
 
         self.engines[database] = engine
         return engine
+
+    def get_database_type(self, database: str):
+        if database not in self.cfg:
+            raise ValueError(f"Database {database} not found in configuration")
+        return self.cfg[database]["type"]
 
     def connect(self, database: str):
         """ Probably not be used anymore after SQLAlchemy integration, RIP [*] """

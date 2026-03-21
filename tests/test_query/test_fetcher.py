@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 from unittest.mock import patch, Mock, call
-from src.query.fetcher import fetch_data
+from src.query.fetcher import fetch_data, fetch_data_chunked
 from sqlalchemy import text, sql
 from sqlalchemy.sql.elements import TextClause
 
@@ -75,3 +75,44 @@ def test_fetch_data_error(mock_read_sql):
     assert args[1] == mock_engine
     assert kwargs == {"params": params}
 
+@patch('src.query.fetcher.pd.read_sql')
+def test_fetch_data_chunked_requires_pagination_column(mock_read_sql):
+    """
+    Test that chunked fetching fails clearly when the pagination column
+    is not present in the fetched chunk.
+    """
+    mock_engine = Mock()
+    mock_read_sql.return_value = pd.DataFrame({"value": [1, 2]})
+
+    generator = fetch_data_chunked(
+        mock_engine,
+        "table_name",
+        [],
+        2,
+        pagination_column="id",
+        columns=["value"],
+        db_type="mysql",
+    )
+
+    with pytest.raises(ValueError, match="Pagination column 'id' is missing"):
+        next(generator)
+
+@patch('src.query.fetcher.pd.read_sql')
+def test_fetch_data_chunked_requires_unique_pagination_column(mock_read_sql):
+    """
+    Test that chunked fetching rejects duplicate pagination values within a chunk.
+    """
+    mock_engine = Mock()
+    mock_read_sql.return_value = pd.DataFrame({"id": [1, 1], "value": ["a", "b"]})
+
+    generator = fetch_data_chunked(
+        mock_engine,
+        "table_name",
+        [],
+        2,
+        pagination_column="id",
+        db_type="mysql",
+    )
+
+    with pytest.raises(ValueError, match="Pagination column 'id' must be unique"):
+        next(generator)

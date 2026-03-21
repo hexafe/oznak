@@ -15,7 +15,7 @@ def test_fetch_single_database_success(mock_db_manager_class, mock_build_query, 
     mock_engine = Mock()
     mock_db_manager_instance.get_engine.return_value = mock_engine
     mock_db_manager_instance.cfg = {
-        "database1": {"table": "table1"}
+        "database1": {"table": "table1", "type": "mysql"}
     }
 
     filters = ["RefName = ABC123"]
@@ -39,7 +39,7 @@ def test_fetch_single_database_success(mock_db_manager_class, mock_build_query, 
 
     # Assert
     mock_db_manager_instance.get_engine.assert_called_once_with("database1")
-    mock_build_query.assert_called_once_with("table1", filters, limit, date_column, None)
+    mock_build_query.assert_called_once_with("table1", filters, limit, date_column, None, "mysql")
     mock_fetch_data.assert_called_once_with(mock_engine, expected_query, expected_params)
     pd.testing.assert_frame_equal(result_df, expected_final_df)
 
@@ -56,8 +56,8 @@ def test_fetch_multiple_databases_success(mock_db_manager_class, mock_build_quer
     mock_engine2 = Mock()
     mock_db_manager_instance.get_engine.side_effect = lambda x: mock_engine1 if x == "database1" else mock_engine2
     mock_db_manager_instance.cfg = {
-        "database1": {"table": "table1"},
-        "database2": {"table": "table2"}
+        "database1": {"table": "table1", "type": "mysql"},
+        "database2": {"table": "table2", "type": "mysql"}
     }
 
     filters = ["Status = ACTIVE"]
@@ -99,8 +99,8 @@ def test_fetch_multiple_databases_success(mock_db_manager_class, mock_build_quer
     mock_db_manager_instance.get_engine.assert_has_calls([call("database1"), call("database2")], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call("table1", filters, limit, date_column, None),
-        call("table2", filters, limit, date_column, None)
+        call("table1", filters, limit, date_column, None, "mysql"),
+        call("table2", filters, limit, date_column, None, "mysql")
     ], any_order=True)
     assert mock_fetch_data.call_count == 2
     mock_fetch_data.assert_has_calls([
@@ -131,8 +131,8 @@ def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query
 
     mock_db_manager_instance.get_engine.side_effect = get_engine_side_effect
     mock_db_manager_instance.cfg = {
-        "database1": {"table": "table1"},
-        "database2": {"table": "table2"}
+        "database1": {"table": "table1", "type": "mysql"},
+        "database2": {"table": "table2", "type": "mysql"}
     }
 
     filters = ["Status = ACTIVE"]
@@ -145,7 +145,7 @@ def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query
     expected_final_df_db1 = expected_df_db1.copy()
     expected_final_df_db1["source_database"] = "database1"
 
-    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg, columns_arg = None):
+    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg, columns_arg = None, db_type_arg = "mysql"):
         if table == "table1":
             return expected_query, expected_params
         elif table == "table2":
@@ -178,7 +178,7 @@ def test_fetch_connection_failure_one_db(mock_db_manager_class, mock_build_query
     ], any_order=True)
     # build_query is called only for the successful database (database1) as db2's thread fails on get_engine
     assert mock_build_query.call_count == 1
-    mock_build_query.assert_called_once_with("table1", filters, limit, date_column, None)
+    mock_build_query.assert_called_once_with("table1", filters, limit, date_column, None, "mysql")
     # fetch_data is called only for the successful database (database1)
     mock_fetch_data.assert_called_once_with(mock_engine1, expected_query, expected_params)
 
@@ -199,8 +199,8 @@ def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_quer
     mock_engine2 = Mock()
     mock_db_manager_instance.get_engine.side_effect = lambda x: mock_engine1 if x == 'database1' else mock_engine2
     mock_db_manager_instance.cfg = {
-        'database1': {'table': 'table1'},
-        'database2': {'table': 'table2'}
+        'database1': {'table': 'table1', 'type': 'mysql'},
+        'database2': {'table': 'table2', 'type': 'mysql'}
     }
 
     filters = ["Status = ACTIVE"]
@@ -213,7 +213,7 @@ def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_quer
     expected_final_df_db1 = expected_df_db1.copy()
     expected_final_df_db1['source_database'] = 'database1'
 
-    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg, columns_arg = None):
+    def mock_build_query_side_effect(table, filters_arg, limit_arg, date_column_arg, columns_arg = None, db_type_arg = "mysql"):
         if table == "table1":
             return expected_query_db1, expected_params_db1
         elif table == "table2":
@@ -245,8 +245,8 @@ def test_fetch_query_build_failure_one_db(mock_db_manager_class, mock_build_quer
     ], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call('table1', filters, limit, date_column, None),
-        call('table2', filters, limit, date_column, None)
+        call('table1', filters, limit, date_column, None, 'mysql'),
+        call('table2', filters, limit, date_column, None, 'mysql')
     ], any_order=True)
     # fetch_data is called only for the successful database (database1) as db2's thread fails on build_query
     mock_fetch_data.assert_called_once_with(mock_engine1, expected_query_db1, expected_params_db1)
@@ -268,8 +268,8 @@ def test_fetch_data_empty_one_db(mock_db_manager_class, mock_build_query, mock_f
     mock_engine2 = Mock()
     mock_db_manager_instance.get_engine.side_effect = lambda x: mock_engine1 if x == 'database1' else mock_engine2
     mock_db_manager_instance.cfg = {
-        'database1': {'table': 'table1'},
-        'database2': {'table': 'table2'}
+        'database1': {'table': 'table1', 'type': 'mysql'},
+        'database2': {'table': 'table2', 'type': 'mysql'}
     }
 
     filters = ["Status = ACTIVE"]
@@ -313,8 +313,8 @@ def test_fetch_data_empty_one_db(mock_db_manager_class, mock_build_query, mock_f
     ], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call('table1', filters, limit, date_column, None),
-        call('table2', filters, limit, date_column, None)
+        call('table1', filters, limit, date_column, None, 'mysql'),
+        call('table2', filters, limit, date_column, None, 'mysql')
     ], any_order=True)
     assert mock_fetch_data.call_count == 2
     mock_fetch_data.assert_has_calls([
@@ -336,8 +336,8 @@ def test_fetch_no_data_any_db(mock_db_manager_class, mock_build_query, mock_fetc
     mock_engine2 = Mock()
     mock_db_manager_instance.get_engine.side_effect = lambda x: mock_engine1 if x == 'database1' else mock_engine2
     mock_db_manager_instance.cfg = {
-        'database1': {'table': 'table1'},
-        'database2': {'table': 'table2'}
+        'database1': {'table': 'table1', 'type': 'mysql'},
+        'database2': {'table': 'table2', 'type': 'mysql'}
     }
 
     filters = ["Status = INACTIVE"]
@@ -366,8 +366,8 @@ def test_fetch_no_data_any_db(mock_db_manager_class, mock_build_query, mock_fetc
     mock_db_manager_instance.get_engine.assert_has_calls([call('database1'), call('database2')], any_order=True)
     assert mock_build_query.call_count == 2
     mock_build_query.assert_has_calls([
-        call('table1', filters, limit, date_column, None),
-        call('table2', filters, limit, date_column, None)
+        call('table1', filters, limit, date_column, None, 'mysql'),
+        call('table2', filters, limit, date_column, None, 'mysql')
     ], any_order=True)
     assert mock_fetch_data.call_count == 2
     mock_fetch_data.assert_has_calls([
@@ -379,10 +379,9 @@ def test_fetch_no_data_any_db(mock_db_manager_class, mock_build_query, mock_fetc
 
 """ Tests for chunked fetching """
 
-@patch("src.services.multi_database_fetcher.export_chunks_streaming")
 @patch("src.services.multi_database_fetcher.fetch_data_chunked")
 @patch("src.services.multi_database_fetcher.DBManager")
-def test_fetch_database_in_chunks_single_db_success(mock_db_manager_class, mock_fetch_data_chunked, mock_export_chunks_streaming):
+def test_fetch_database_in_chunks_single_db_success(mock_db_manager_class, mock_fetch_data_chunked, tmp_path):
     """
     Test fetching chunks from a single database
     """
@@ -393,14 +392,14 @@ def test_fetch_database_in_chunks_single_db_success(mock_db_manager_class, mock_
     mock_engine = Mock()
     mock_db_manager_instance.get_engine.return_value = mock_engine
     mock_db_manager_instance.cfg = {
-        "database1": {"table": "table1"}
+        "database1": {"table": "table1", "type": "mysql"}
     }
     
     database = "database1"
     filters = ["Status = ACTIVE"]
     chunk_size = 1000
     pagination_column = "timestamp"
-    temp_output_file = "temp_test_output.csv"
+    temp_output_file = tmp_path / "temp_test_output.csv"
     columns = None
 
     chunk1 = pd.DataFrame({
@@ -413,18 +412,109 @@ def test_fetch_database_in_chunks_single_db_success(mock_db_manager_class, mock_
         "col2": ['c', 'd'],
         "timestamp": ["2025-01-01 10:00:02", "2025-01-01 10:00:03"]
     })
-    mock_fetch_data_chunked.return_value = [chunk1, chunk2]
+    mock_fetch_data_chunked.return_value = iter([chunk1, chunk2])
 
     fetcher = MultiDatabaseFetcher()
     fetcher.db = mock_db_manager_instance
 
     # Act
-    fetcher.fetch_database_in_chunks(database, filters, chunk_size, temp_output_file, pagination_column, columns)
+    result = fetcher.fetch_database_in_chunks(database, filters, chunk_size, str(temp_output_file), pagination_column, columns)
 
     # Assert
-    mock_fetch_data_chunked.assert_called_once_with(mock_engine, "table1", filters, chunk_size, pagination_column, columns)
-    mock_export_chunks_streaming.assert_called_once()
-    call_args = mock_export_chunks_streaming.call_args
-    assert call_args[0][0] == [chunk1, chunk2]
-    assert call_args[0][1] == temp_output_file
+    mock_fetch_data_chunked.assert_called_once_with(mock_engine, "table1", filters, chunk_size, pagination_column, columns, "mysql")
+    assert result is True
 
+    exported_df = pd.read_csv(temp_output_file)
+    assert "source_database" in exported_df.columns
+    assert exported_df["source_database"].tolist() == ["database1", "database1", "database1", "database1"]
+
+@patch("src.services.multi_database_fetcher.fetch_data_chunked")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_chunked_streams_multiple_databases_without_pagination_column_in_output(mock_db_manager_class, mock_fetch_data_chunked, tmp_path):
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine1 = Mock()
+    mock_engine2 = Mock()
+    mock_db_manager_instance.get_engine.side_effect = lambda db: mock_engine1 if db == "database1" else mock_engine2
+    mock_db_manager_instance.cfg = {
+        "database1": {"table": "table1", "type": "mysql"},
+        "database2": {"table": "table2", "type": "mysql"},
+    }
+
+    db1_chunk = pd.DataFrame({"id": [1, 2], "value": ["a", "b"]})
+    db2_chunk = pd.DataFrame({"id": [3], "value": ["c"]})
+    mock_fetch_data_chunked.side_effect = [iter([db1_chunk]), iter([db2_chunk])]
+
+    output_file = tmp_path / "chunked_output.csv"
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    result = fetcher.fetch_chunked(
+        ["database1", "database2"],
+        ["Status = ACTIVE"],
+        1000,
+        str(output_file),
+        pagination_column="id",
+        columns=["value"],
+    )
+
+    assert result is True
+    exported_df = pd.read_csv(output_file)
+    assert exported_df.columns.tolist() == ["value", "source_database"]
+    assert exported_df.to_dict(orient="records") == [
+        {"value": "a", "source_database": "database1"},
+        {"value": "b", "source_database": "database1"},
+        {"value": "c", "source_database": "database2"},
+    ]
+
+@patch("src.services.multi_database_fetcher.fetch_data_chunked")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_chunked_returns_false_when_no_chunks_are_exported(mock_db_manager_class, mock_fetch_data_chunked, tmp_path):
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+
+    mock_engine = Mock()
+    mock_db_manager_instance.get_engine.return_value = mock_engine
+    mock_db_manager_instance.cfg = {
+        "database1": {"table": "table1", "type": "mysql"},
+    }
+
+    mock_fetch_data_chunked.return_value = iter([])
+    output_file = tmp_path / "empty_chunked_output.csv"
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    result = fetcher.fetch_chunked(
+        ["database1"],
+        ["Status = ACTIVE"],
+        1000,
+        str(output_file),
+        pagination_column="id",
+        columns=["value"],
+    )
+
+    assert result is False
+    assert output_file.exists() is False
+
+@patch("src.services.multi_database_fetcher.fetch_data_chunked")
+@patch("src.services.multi_database_fetcher.DBManager")
+def test_fetch_chunked_rejects_non_csv_output(mock_db_manager_class, mock_fetch_data_chunked, tmp_path):
+    mock_db_manager_instance = Mock()
+    mock_db_manager_class.return_value = mock_db_manager_instance
+    mock_db_manager_instance.cfg = {"database1": {"table": "table1", "type": "mysql"}}
+
+    fetcher = MultiDatabaseFetcher()
+    fetcher.db = mock_db_manager_instance
+
+    with pytest.raises(ValueError, match="supports only CSV"):
+        fetcher.fetch_chunked(
+            ["database1"],
+            [],
+            1000,
+            str(tmp_path / "chunked_output.xlsx"),
+            pagination_column="id",
+            columns=None,
+        )

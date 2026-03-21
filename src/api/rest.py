@@ -1,37 +1,60 @@
-from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Query
+
 from src.services.multi_database_fetcher import MultiDatabaseFetcher
 from src.services.request_preprocessor import preprocess_fetch_request
 
-app = FastAPI(title='Oznak MVP API')
+app = FastAPI(title="Oznak API")
 fetcher = MultiDatabaseFetcher()
 
-@app.get('/fetch')
-def fetch(databases: str = Query(..., description='Comma-separated databases'),
-          time_from: Optional[str] = None,
-          time_to: Optional[str] = None,
-          last_n: Optional[int] = None,
-          reference: Optional[str] = None):
-    filters: list[str] = []
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/fetch")
+def fetch(
+    databases: str = Query(..., description="Comma-separated database names"),
+    filters: list[str] = Query(default=[]),
+    last: Optional[int] = Query(default=None, gt=0),
+    date_col: str = Query(default="TimeStamp"),
+    select_columns: Optional[str] = Query(default=None),
+    time_from: Optional[str] = None,
+    time_to: Optional[str] = None,
+    last_n: Optional[int] = None,
+    reference: Optional[str] = None,
+):
+    combined_filters = list(filters)
     if time_from:
-        filters.append(f"TimeStamp >= {time_from}")
+        combined_filters.append(f"TimeStamp >= {time_from}")
     if time_to:
-        filters.append(f"TimeStamp <= {time_to}")
+        combined_filters.append(f"TimeStamp <= {time_to}")
     if reference:
-        filters.append(f"RefName = {reference}")
+        combined_filters.append(f"RefName = {reference}")
+
+    effective_last = last if last is not None else last_n
 
     try:
         prepared = preprocess_fetch_request(
             databases=databases,
-            filters=filters,
-            last=last_n,
-            select_columns=None,
+            filters=combined_filters,
+            last=effective_last,
+            select_columns=select_columns,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if not prepared["databases"]:
-        raise HTTPException(status_code=400, detail='databases is required')
+        raise HTTPException(status_code=400, detail="databases is required")
 
-    df = fetcher.fetch(prepared["databases"], prepared["filters"], prepared["limit"])
-    return {'rows': len(df), 'data': df.to_dict(orient='records')}
+    df = fetcher.fetch(
+        prepared["databases"],
+        prepared["filters"],
+        prepared["limit"],
+        date_col,
+        prepared["columns"],
+    )
+
+    return {"rows": len(df), "data": df.to_dict(orient="records")}

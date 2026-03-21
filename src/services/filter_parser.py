@@ -1,5 +1,7 @@
 import re
 
+from src.query.builder import parse_filter_string
+
 
 IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 OPERATOR_PATTERN = re.compile(
@@ -8,45 +10,6 @@ OPERATOR_PATTERN = re.compile(
     r"(?P<value>.+)$",
     re.IGNORECASE,
 )
-
-
-def parse_filter_string(filter_str: str):
-    """
-    Parse filter string like "RefName LIKE V123456 into (column, operator, value)
-    """
-    normalized_filter = filter_str.strip()
-    if not normalized_filter:
-        raise ValueError(f"Invalid filter format: {filter_str}. Expected: 'column operator value'")
-
-    match = OPERATOR_PATTERN.match(normalized_filter)
-    if not match:
-        parts = normalized_filter.split()
-        if len(parts) >= 3 and IDENTIFIER_PATTERN.match(parts[0]):
-            bad_operator = parts[1].upper()
-            raise ValueError(f"Invalid operator: {bad_operator}")
-        raise ValueError(f"Invalid filter format: {filter_str}. Expected: 'column operator value'")
-
-    column = match.group("column")
-    operator = re.sub(r"\s+", " ", match.group("operator").upper()).strip()
-    value = match.group("value").strip()
-
-    # Validate column name - SQL injection protection
-    if not IDENTIFIER_PATTERN.match(column):
-        raise ValueError(f"Invalid column name: {column}")
-
-    # Validate operator (only allow safe operators)
-    allowed_operators = {
-        '=', '!=', '<>', '<', '>', '<=', '>=',
-        'LIKE', 'NOT LIKE', 'IN', 'NOT IN',
-        'IS', 'IS NOT'
-    }
-    if operator not in allowed_operators:
-        raise ValueError(f"Invalid operator: {operator}. Allowed: {', '.join(allowed_operators)}")
-
-    if not value:
-        raise ValueError(f"Invalid filter format: {filter_str}. Expected: 'column operator value'")
-
-    return column, operator, value
 
 
 def normalize_databases(databases: str | list[str]) -> list[str]:
@@ -78,6 +41,7 @@ def normalize_columns(columns: str | list[str] | None) -> list[str] | None:
         raise ValueError(f"Invalid column name(s): {', '.join(invalid)}")
 
     return normalized
+
 
 def _normalize_filter_value(operator: str, value: str) -> str:
     if operator in {"IN", "NOT IN"}:
@@ -111,7 +75,6 @@ def _normalize_typed_filter(filter_item: dict[str, object]) -> str:
 
     if not isinstance(field, str) or not field.strip():
         raise ValueError("Invalid filter object: field must be a non-empty string")
-
     if not isinstance(operator, str) or not operator.strip():
         raise ValueError("Invalid filter object: op must be a non-empty string")
 
@@ -145,9 +108,6 @@ def _normalize_typed_filter(filter_item: dict[str, object]) -> str:
 
 
 def parse_filters(filters: list[str | dict[str, object]] | None = None, last: int | None = None) -> dict[str, list[str] | int | None]:
-    """
-    Parse filter strings and return them as a list
-    """
     if not filters:
         filters = []
 
@@ -170,9 +130,7 @@ def parse_filters(filters: list[str | dict[str, object]] | None = None, last: in
     if last is not None and (not isinstance(last, int) or last <= 0):
         raise ValueError("'last' must be a positive integer")
 
-    result = {
+    return {
         "filters": normalized_filters,
-        "limit": last
+        "limit": last,
     }
-
-    return result

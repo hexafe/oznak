@@ -3,7 +3,6 @@ from src.query.builder import build_query
 from src.query.fetcher import fetch_data, fetch_data_chunked
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import tempfile
 import os
 from src.storage.exporter import export_chunks_streaming
 
@@ -19,8 +18,9 @@ def _fetch_single_database(database, filters, limit, date_column, columns, db_ma
 
         cfg = db_manager_instance.cfg[database]
         table = cfg["table"]
+        db_type = cfg["type"]
 
-        query, params = build_query(table, filters, limit, date_column, columns)
+        query, params = build_query(table, filters, limit, date_column, columns, db_type)
         print(f"   └── Query: {query[:50]}...") # Could be too much spam on the terminal :(
         
         df = fetch_data(engine, query, params)
@@ -34,6 +34,25 @@ def _fetch_single_database(database, filters, limit, date_column, columns, db_ma
     except Exception as e:
         print(f"    Thread failed to fetch from {database}: {e}")
         return None
+
+
+def _prepare_chunk_for_export(chunk_df, database: str, pagination_column: str, columns: list = None):
+    prepared_chunk = chunk_df.copy()
+    prepared_chunk["source_database"] = database
+
+    if columns is None:
+        return prepared_chunk
+
+    requested_columns = list(columns)
+    if pagination_column not in requested_columns and pagination_column in prepared_chunk.columns:
+        prepared_chunk = prepared_chunk.drop(columns=[pagination_column])
+
+    ordered_columns = list(requested_columns)
+    if "source_database" not in ordered_columns:
+        ordered_columns.append("source_database")
+
+    available_columns = [column for column in ordered_columns if column in prepared_chunk.columns]
+    return prepared_chunk[available_columns]
 
 
 class MultiDatabaseFetcher:
@@ -69,53 +88,76 @@ class MultiDatabaseFetcher:
 
         return combined_df
 
-    def fetch_database_in_chunks(self, database: str, filters: list, chunk_size: int, temp_output_path: str, pagination_column: str = "id", columns: list = None):
+    def fetch_database_in_chunks(
+        self,
+        database: str,
+        filters: list,
+        chunk_size: int,
+        temp_output_path: str,
+        pagination_column: str = "id",
+        columns: list = None,
+        write_header: bool = True,
+        mode: str = "w",
+    ):
         """
-        Fetches data in chunks from a single database and exports them directly to a temporary file
+        Fetches data in chunks from a single database and exports them directly to the output file
         """
         print(f"Fetching chunks from database: {database}")
         engine = self.db.get_engine(database)
         cfg = self.db.cfg[database]
         table = cfg["table"]
+        db_type = cfg["type"]
 
-        chunk_generator = fetch_data_chunked(engine, table, filters, chunk_size, pagination_column, columns)
-        export_chunks_streaming(chunk_generator, temp_output_path)
-        print(f"   └── Chunks from {database} exported to {temp_output_path}")
+        chunk_generator = fetch_data_chunked(
+            engine,
+            table,
+            filters,
+            chunk_size,
+            pagination_column,
+            columns,
+            db_type,
+        )
+        prepared_generator = (
+            _prepare_chunk_for_export(chunk_df, database, pagination_column, columns)
+            for chunk_df in chunk_generator
+        )
+        return export_chunks_streaming(
+            prepared_generator,
+            temp_output_path,
+            write_header=write_header,
+            mode=mode,
+        )
 
     def fetch_chunked(self, databases: list, filters: list, chunk_size: int, output_path: str, pagination_column: str = "id", columns: list = None):
         """
-        Fetches data in chunks from multiple databases and combines them into the final output file
-        Uses temporary files per database to manage memory
+        Fetches data in chunks from multiple databases and streams them into the final output file
         """
         print(f"Starting chunked fetch for databases: {databases}")
-        temp_files = []
+        if not output_path.endswith(".csv"):
+            raise ValueError("Chunked export currently supports only CSV output")
 
-        # Fetch chunks from each database into separate temporary files
+        if os.path.exists(output_path):
+            os.unlink(output_path)
+
+        wrote_any_data = False
+
         for database in databases:
-            # Create temp file for database chunks
-            temp_db_file = tempfile.NamedTemporaryFile(mode='w', suffix=".csv", delete=False)
-            temp_db_path = temp_db_file.name
-            temp_db_file.close()
-            temp_files.append(temp_db_path)
+            database_wrote_data = self.fetch_database_in_chunks(
+                database,
+                filters,
+                chunk_size,
+                output_path,
+                pagination_column,
+                columns,
+                write_header=not wrote_any_data,
+                mode="a" if wrote_any_data else "w",
+            )
+            if database_wrote_data:
+                wrote_any_data = True
 
-            # Fetch and export chunks fro this database
-            self.fetch_database_in_chunks(database, filters, chunk_size, temp_db_path, pagination_column, columns)
-
-        # Combine temporary files into the final output file
-        print(f"Combining data from {len(temp_files)} temp files tinto {output_path}...")
-        combined_df = pd.DataFrame()
-        for temp_path in temp_files:
-            temp_df = pd.read_csv(temp_path)
-            combined_df = pd.concat([combined_df, temp_df], ignore_index=True)
-            os.unlink(temp_path) # Delete temp file after reading
-
-        # Export the final combined DataFrame
-        if output_path.endswith(".csv"):
-            combined_df.to_csv(output_path, index=False)
-        elif output_path.endswith((".parquet", ".parq")):
-            combined_df.to_parquet(output_path, index=False)
-        else:
-            raise ValueError(f"Unsupported output format for output file: {output_path}")
+        if not wrote_any_data:
+            print("No data fetched in chunked mode")
+            return False
 
         print(f"Chunked fetch and export completed. Output file: {output_path}")
-
+        return True
