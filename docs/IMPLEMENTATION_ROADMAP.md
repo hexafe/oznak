@@ -22,10 +22,10 @@ Current gaps identified:
 | Phase | Scope | Status | Next step |
 |---|---|---|---|
 | Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Expand lint/type coverage beyond core query/filter modules and establish API/CLI regression coverage as the next quality gate. |
-| Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟡 In progress | Add typed validation layer, strengthen MSSQL live coverage, and extend malformed-filter/operator tests. |
+| Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟢 In Progress | Add typed validation layer, strengthen MSSQL live coverage, and extend malformed-filter/operator tests. |
 | Phase 2 | Multi-database orchestration resilience (timeouts, partial failures, observability) | 🟡 Planned | Introduce structured logging and per-database execution metrics surfaced in CLI/API output. |
-| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟡 In progress | Add live API smoke checks, improve UX messaging, and verify real database flows beyond mocks. |
-| Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟡 In progress | Validate chunked exports on real datasets and extend export options beyond current CSV-first chunking. |
+| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟢 In Progress | Add live API smoke checks, improve UX messaging, and verify real database flows beyond mocks. |
+| Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟢 In Progress | Validate chunked exports on real datasets and extend export options beyond current CSV-first chunking. |
 | Phase 5 | Deployment and operations readiness (container hardening, env templates, release process) | 🟡 Planned | Add release checklist, semantic version workflow, and deployment docs for dev/staging/prod environments. |
 
 

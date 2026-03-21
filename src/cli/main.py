@@ -32,7 +32,7 @@ def load(
             select_columns=select_columns,
         )
     except ValueError as exc:
-        print(f"Invalid request: {exc}")
+        print(f"Invalid filters: {exc}")
         raise typer.Exit(code=1)
 
     fetcher = MultiDatabaseFetcher()
@@ -78,7 +78,7 @@ def load_chunked(
             select_columns=select_columns,
         )
     except ValueError as exc:
-        print(f"Invalid request: {exc}")
+        print(f"Invalid filters: {exc}")
         raise typer.Exit(code=1)
 
     fetcher = MultiDatabaseFetcher()
