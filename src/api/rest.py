@@ -1,7 +1,8 @@
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
 
+from src.api.errors import execution_error, validation_error
 from src.services.multi_database_fetcher import MultiDatabaseFetcher
 from src.services.request_preprocessor import preprocess_fetch_request
 
@@ -47,17 +48,23 @@ def fetch(
             select_columns=normalized_select_columns,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise validation_error(str(exc), {"field": "request"}) from exc
 
     if not prepared["databases"]:
-        raise HTTPException(status_code=400, detail="databases is required")
+        raise validation_error("databases is required", {"field": "databases"})
 
-    df = fetcher.fetch(
-        prepared["databases"],
-        prepared["filters"],
-        prepared["limit"],
-        normalized_date_col,
-        prepared["columns"],
-    )
+    try:
+        df = fetcher.fetch(
+            prepared["databases"],
+            prepared["filters"],
+            prepared["limit"],
+            normalized_date_col,
+            prepared["columns"],
+        )
+    except Exception as exc:
+        raise execution_error(
+            "database fetch failed",
+            {"error": str(exc), "databases": prepared["databases"]},
+        ) from exc
 
     return {"rows": len(df), "data": df.to_dict(orient="records")}

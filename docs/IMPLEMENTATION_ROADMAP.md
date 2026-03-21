@@ -10,6 +10,7 @@ Current strengths:
 - CI pipeline is present and running tests in `.github/workflows/ci.yml`.
 - Query generation is database-aware for MySQL and MSSQL.
 - Chunked export now streams directly to CSV and preserves `source_database`.
+- API fetch now returns normalized `code` / `message` / `details` error payloads for validation and execution failures.
 
 Current gaps identified:
 - CI now includes a baseline lint/type stage (`ruff` on `src/` and `mypy` on typed query/filter modules); coverage should be expanded across remaining modules.

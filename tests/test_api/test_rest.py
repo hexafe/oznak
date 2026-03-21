@@ -83,21 +83,25 @@ def test_fetch_endpoint_success(mock_fetcher):
 def test_fetch_handler_rejects_invalid_database_name():
     module = importlib.import_module("src.api.rest")
 
-    with pytest.raises(module.HTTPException) as exc_info:
+    with pytest.raises(HTTPException) as exc_info:
         module.fetch(databases="db1,bad-name")
 
     assert exc_info.value.status_code == 400
-    assert "Invalid database name" in str(exc_info.value.detail)
+    assert exc_info.value.detail["code"] == "validation_error"
+    assert "Invalid database name" in exc_info.value.detail["message"]
+    assert exc_info.value.detail["details"] == {"field": "request"}
 
 
 def test_fetch_handler_rejects_invalid_last_n():
     module = importlib.import_module("src.api.rest")
 
-    with pytest.raises(module.HTTPException) as exc_info:
+    with pytest.raises(HTTPException) as exc_info:
         module.fetch(databases="db1", last_n=-1)
 
     assert exc_info.value.status_code == 400
-    assert "'last' must be a positive integer" in str(exc_info.value.detail)
+    assert exc_info.value.detail["code"] == "validation_error"
+    assert "'last' must be a positive integer" in exc_info.value.detail["message"]
+    assert exc_info.value.detail["details"] == {"field": "request"}
 
 
 @patch("src.api.rest.fetcher")
@@ -109,5 +113,26 @@ def test_fetch_endpoint_rejects_invalid_filters(mock_fetcher):
         )
 
     assert exc_info.value.status_code == 400
-    assert "Invalid filter format" in exc_info.value.detail
+    assert exc_info.value.detail["code"] == "validation_error"
+    assert "Invalid filter format" in exc_info.value.detail["message"]
+    assert exc_info.value.detail["details"] == {"field": "request"}
     mock_fetcher.fetch.assert_not_called()
+
+
+@patch("src.api.rest.fetcher")
+def test_fetch_endpoint_wraps_execution_failures(mock_fetcher):
+    mock_fetcher.fetch.side_effect = RuntimeError("db offline")
+
+    with pytest.raises(HTTPException) as exc_info:
+        rest.fetch(
+            databases="database1",
+            filters=["Status = ACTIVE"],
+        )
+
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.detail["code"] == "execution_error"
+    assert exc_info.value.detail["message"] == "database fetch failed"
+    assert exc_info.value.detail["details"] == {
+        "error": "db offline",
+        "databases": ["database1"],
+    }
