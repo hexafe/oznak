@@ -14,23 +14,26 @@ def load(
         date_col: str = typer.Option("TimeStamp", "--date_col", help="Name of the date/timestamp column for ordering (when using --last)"),
         out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
 ):
-    # Validate inputs
     if last is not None and (not isinstance(last, int) or last <= 0):
         print("'last' must be a positive integer")
-        return
+        raise typer.Exit(code=1)
 
-    # Validate date column name (basic check, more robust implementation to be done if needed :P)
     if not date_col.replace('_', '').replace('.', '').isalnum():
         print(f"Invalid date column name: {date_col}")
-        return
+        raise typer.Exit(code=1)
+
+    try:
+        parsed = parse_filters(filters, last)
+    except ValueError as exc:
+        print(f"Invalid filters: {exc}")
+        raise typer.Exit(code=1)
 
     fetcher = MultiDatabaseFetcher()
-    parsed = parse_filters(filters, last)
 
     if not parsed["filters"] and parsed["limit"] is None:
         print("No filters or limit specified. This will fetch all data from all tables!")
         if not typer.confirm("Are you sure you want to continue?"):
-            return
+            raise typer.Exit(code=0)
 
     databases_list = [database.strip() for database in databases.split(",")]
 
@@ -42,7 +45,7 @@ def load(
 
     if df.empty:
         print("No data to export")
-        return
+        raise typer.Exit(code=0)
 
     export(df, out)
 
@@ -53,7 +56,7 @@ def load_chunked(
         filters: list[str] = typer.Option([], "--filter", "-f", help="Example filter: 'RefName IN V123456, ABC123'"),
         chunk_size: int = typer.Option(10000, "--chunk-size", "-cs", help="Number of rows per chunk to fetch and export"),
         pagination_col: str = typer.Option("id", "--pagination-column", help="Column name for pagination (should be unique/indexed)"),
-        out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
+        out: str = typer.Option("output.csv", "--out", "-o", help="Output CSV file"),
 ):
     """
     Load data in chunks from specified databases, applying filters and optional column selection, and export directly to a file
@@ -62,15 +65,31 @@ def load_chunked(
         print(f"'chunk_size' must be a positive integer")
         raise typer.Exit(code=1)
 
-    fetcher = MultiDatabaseFetcher()
     databases_list = [db.strip() for db in databases.split(',')]
-    columns_list = [col.strip() for col in select_columns.splut(',')] if select_columns else None
+    columns_list = [col.strip() for col in select_columns.split(',')] if select_columns else None
 
-    fetcher.fetch_chunked(databases_list, filters, chunk_size, out, pagination_column, columns_list)
+    try:
+        parsed = parse_filters(filters, None)
+    except ValueError as exc:
+        print(f"Invalid filters: {exc}")
+        raise typer.Exit(code=1)
 
-    print(f"Data from {databases_list} loaded in chunks and exported to {out}")
+    fetcher = MultiDatabaseFetcher()
+
+    exported = fetcher.fetch_chunked(
+        databases_list,
+        parsed["filters"],
+        chunk_size,
+        out,
+        pagination_col,
+        columns_list,
+    )
+
+    if exported:
+        print(f"Data from {databases_list} loaded in chunks and exported to {out}")
+    else:
+        print(f"No data exported for {databases_list}")
 
 
 if __name__ == "__main__":
     app()
-

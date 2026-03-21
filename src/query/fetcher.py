@@ -1,6 +1,8 @@
 import pandas as pd
 from sqlalchemy import text
 
+from src.query.builder import build_chunked_query
+
 
 def fetch_data(engine, query: str, params: dict = None):
     """
@@ -21,7 +23,7 @@ def fetch_data(engine, query: str, params: dict = None):
         print(f"Error executing query: {e}")
         return pd.DataFrame()
 
-def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagination_column: str = "id", columns: list = None):
+def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagination_column: str = "id", columns: list = None, db_type: str = "mysql"):
     """
     Fetches data in chunks using unique, indexed column for pagination
 
@@ -38,7 +40,15 @@ def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagin
     """
     last_value = None
     while True:
-        query, params = build_chunked_query(table, filters, chunk_size, last_value, pagination_column, columns)
+        query, params = build_chunked_query(
+            table,
+            filters,
+            chunk_size,
+            last_value,
+            pagination_column,
+            columns,
+            db_type,
+        )
         print(f"Fetching chunk with query: {query[:50]}...")
 
         try:
@@ -54,10 +64,19 @@ def fetch_data_chunked(engine, table: str, filters: list, chunk_size: int, pagin
             print(f"Reached end of data")
             break
 
-        print(f"Fetched {len(df)} reacords in this chunk")
+        if pagination_column not in df.columns:
+            raise ValueError(
+                f"Pagination column '{pagination_column}' is missing from chunk results"
+            )
+
+        if not df[pagination_column].is_unique:
+            raise ValueError(
+                f"Pagination column '{pagination_column}' must be unique within each chunk"
+            )
+
+        print(f"Fetched {len(df)} records in this chunk")
         yield df
 
         last_value = df[pagination_column].iloc[-1]
 
         print(f"   └── Last {pagination_column} in chunk: {last_value}")
-

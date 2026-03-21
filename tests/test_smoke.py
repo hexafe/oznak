@@ -39,7 +39,7 @@ def test_multi_database_fetcher_integration(mock_read_sql, mock_db_manager_class
     mock_engine = Mock()
     mock_db_manager_instance.get_engine.return_value = mock_engine
     mock_db_manager_instance.cfg = {
-        "database1": {"table": "test_table"}
+        "database1": {"table": "test_table", "type": "mysql"}
     }
 
     # Mock the return value of pd.read_sql (which is called by fetch_data)
@@ -71,4 +71,3 @@ def test_cli_app_loads():
         pytest.fail(f"Failed to load or validate CLI app: {e}")
 
 #TODO: add more integration tests for other critical paths after implementation
-

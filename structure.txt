@@ -1,9 +1,9 @@
 oznak/
 ├── config/
 │   ├── databases.yaml          # Database connection definitions
-│   └── settings.py             # Global settings (paths, URLs)
+│   └── settings.py             # Global settings (paths)
 ├── src/
-│   ├── main.py                 # Entry point (CLI + API)
+│   ├── main.py                 # CLI entry point
 │   ├── db/
 │   │   ├── manager.py          # DB connection manager
 │   │   └── connectors/
@@ -14,17 +14,17 @@ oznak/
 │   │   └── fetcher.py          # Data fetching logic
 │   ├── services/
 │   │   ├── multi_database_fetcher.py  # Aggregates data from multiple databases
-│   │   └── filter_parser.py       # Parses filter parameters
+│   │   └── filter_parser.py          # Validates filter parameters
 │   ├── api/
 │   │   └── rest.py             # FastAPI endpoints
 │   ├── cli/
 │   │   └── main.py             # Typer CLI interface
 │   ├── storage/
-│   │   └── sqlite_manager.py   # SQLite CRUD operations
+│   │   └── exporter.py         # CSV/Excel export helpers
 │   └── utils/
 │       └── env.py              # Environment variable loading
+├── tests/                      # Unit and smoke tests
 ├── .env.example                # Template for environment variables
 ├── .env                        # (Not in repo) Secrets and credentials
 ├── requirements.txt
 └── README.md
-

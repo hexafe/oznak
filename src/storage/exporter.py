@@ -14,7 +14,7 @@ def export(df, path: str):
     except Exception as e:
         print(f"Error exporting: {e}")
 
-def export_chunks_streaming(chunks_generator, path: str, write_header: bool = True):
+def export_chunks_streaming(chunks_generator, path: str, write_header: bool = True, mode: str = "w"):
     """
     Export DataFrames yielded by a generator to a single file (CSV) by appending
     Assumes the first chunk determines the column structure
@@ -28,17 +28,24 @@ def export_chunks_streaming(chunks_generator, path: str, write_header: bool = Tr
         raise ValueError(f"Streaming export is currently only supported for CSV format")
 
     first_chunk = True
-    mode = 'w'
+    current_mode = mode
+    wrote_any_chunks = False
+
     for i, chunk_df in enumerate(chunks_generator):
+        if chunk_df.empty:
+            continue
+
         print(f"Exporting chunk {i+1} ({len(chunk_df)} records) to {path}...")
 
         header = write_header if first_chunk else False
-        if not first_chunk:
-            mode = 'a'
-
-        chunk_df.to_csv(path, mode=mode, header=header, index=False)
+        chunk_df.to_csv(path, mode=current_mode, header=header, index=False)
         first_chunk = False
-        mode = 'a'
+        current_mode = 'a'
+        wrote_any_chunks = True
 
-    print(f"Chunks exported to {path} successfully")
+    if wrote_any_chunks:
+        print(f"Chunks exported to {path} successfully")
+    else:
+        print(f"No chunks exported to {path}")
 
+    return wrote_any_chunks
