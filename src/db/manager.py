@@ -23,8 +23,12 @@ class DBManager:
             return self.engines[database]
 
         entry = self.cfg[database]
-        user, password = get_credentials(database)
         db_type = entry["type"]
+
+        if db_type not in {"mysql", "mssql"}:
+            raise ValueError(f"Unsupported DB type: {db_type}")
+
+        user, password = get_credentials(database)
 
         if not user or not password:
             raise ValueError(f"Missing credentials for database: {database}")
@@ -43,9 +47,6 @@ class DBManager:
                 f"@{entry['host']}:{entry['port']}/{entry['database']}"
                 "?driver=ODBC+Driver+17+for+SQL+Server"
             )
-        else:
-            raise ValueError(f"Unsupported DB type: {db_type}")
-
         engine = create_engine(
             conn_str,
             echo=False,

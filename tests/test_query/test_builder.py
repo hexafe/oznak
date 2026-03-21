@@ -464,9 +464,6 @@ def test_build_chunked_query_with_select_columns():
     assert query == expected_query
     assert params == expected_params
 
-<<<<<<< HEAD
-
-
 def test_build_query_not_like_filter():
     table = "my_table"
     filters = ["RefName NOT LIKE V123%"]
@@ -485,7 +482,7 @@ def test_build_query_is_not_filter():
 
     assert query == "SELECT * FROM `my_table` WHERE `DeletedAt` IS NOT NULL"
     assert params == {}
-=======
+
 def test_build_chunked_query_adds_pagination_column_when_missing():
     """
     Test that the pagination column is always included in chunked queries
@@ -556,4 +553,3 @@ def test_build_chunked_query_mssql():
 
     assert query == expected_query
     assert params == expected_params
->>>>>>> 2af6b61 (Stabilize runtime surface and chunked fetching)

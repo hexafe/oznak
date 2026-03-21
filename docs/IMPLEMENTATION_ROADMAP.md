@@ -1,29 +1,31 @@
 # Oznak Implementation Roadmap
 
-_Last updated: 2026-02-25 (refreshed)_
+_Last updated: 2026-03-21_
 
 ## Repository review summary
 
 Current strengths:
 - Core modular structure is already present (`db`, `query`, `services`, `cli`, `api`, `storage`).
-- Unit and smoke tests exist for query and multi-database fetcher flows.
+- Unit, smoke, CLI, API, and DB-manager tests now exist and run under `pytest -q`.
 - CI pipeline is present and running tests in `.github/workflows/ci.yml`.
-- Test invocation is stable via `PYTHONPATH: .` in CI and `pytest.ini`.
+- Query generation is database-aware for MySQL and MSSQL.
+- Chunked export now streams directly to CSV and preserves `source_database`.
 
 Current gaps identified:
 - CI now includes a baseline lint/type stage (`ruff` on `src/` and `mypy` on typed query/filter modules); coverage should be expanded across remaining modules.
-- No API contract-test coverage is present (schema/contract regression checks are missing).
-- CLI and API regression suites are not yet implemented beyond current smoke-level checks.
+- Most verification is still mocked or local-only; live MySQL/MSSQL validation is still pending.
+- Docker/API runtime verification against real configuration is still pending.
+- Roadmap status can drift unless updated with each implementation PR.
 
 ## Phase plan
 
 | Phase | Scope | Status | Next step |
 |---|---|---|---|
 | Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Expand lint/type coverage beyond core query/filter modules and establish API/CLI regression coverage as the next quality gate. |
-| Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟡 Planned | Add typed validation layer and expand test matrix for malformed filters and unsupported operators. |
+| Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟡 In progress | Add typed validation layer, strengthen MSSQL live coverage, and extend malformed-filter/operator tests. |
 | Phase 2 | Multi-database orchestration resilience (timeouts, partial failures, observability) | 🟡 Planned | Introduce structured logging and per-database execution metrics surfaced in CLI/API output. |
-| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟡 Planned | Publish explicit API schema examples and add CLI golden-path + failure-path integration tests. |
-| Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟡 Planned | Add export profile configuration and tests for column typing, ordering, and file naming strategy. |
+| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟡 In progress | Add live API smoke checks, improve UX messaging, and verify real database flows beyond mocks. |
+| Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟡 In progress | Validate chunked exports on real datasets and extend export options beyond current CSV-first chunking. |
 | Phase 5 | Deployment and operations readiness (container hardening, env templates, release process) | 🟡 Planned | Add release checklist, semantic version workflow, and deployment docs for dev/staging/prod environments. |
 
 
@@ -170,6 +172,7 @@ For each new feature merged into the repository:
 - Update roadmap on every feature PR.
 - Re-evaluate priorities at least once per sprint.
 - Promote any blocked phase with explicit blocker notes and mitigation steps.
+- Use `docs/TEST_VERIFICATION_CHECKLIST.md` as the default manual verification sequence for release candidates.
 
 ## Evidence checked
 
@@ -177,3 +180,4 @@ For each new feature merged into the repository:
 - `pytest.ini`
 - `requirements.txt`
 - `tests/test_smoke.py`
+- `docs/TEST_VERIFICATION_CHECKLIST.md`
