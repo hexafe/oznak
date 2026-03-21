@@ -7,6 +7,11 @@ from src.storage.exporter import export
 app = typer.Typer()
 
 
+def _fail(message: str, code: int = 1) -> None:
+    typer.echo(message, err=True)
+    raise typer.Exit(code=code)
+
+
 @app.command()
 def load(
     databases: str = typer.Argument(..., help="Comma-separated list of databases (e.g., database1, database2"),
@@ -17,12 +22,10 @@ def load(
     out: str = typer.Option("output.csv", "--out", "-o", help="Output file (CSV or Excel)"),
 ):
     if last is not None and (not isinstance(last, int) or last <= 0):
-        print("'last' must be a positive integer")
-        raise typer.Exit(code=1)
+        _fail("'last' must be a positive integer")
 
     if not date_col.replace("_", "").replace(".", "").isalnum():
-        print(f"Invalid date column name: {date_col}")
-        raise typer.Exit(code=1)
+        _fail(f"Invalid date column name: {date_col}")
 
     try:
         prepared = preprocess_fetch_request(
@@ -32,8 +35,7 @@ def load(
             select_columns=select_columns,
         )
     except ValueError as exc:
-        print(f"Invalid filters: {exc}")
-        raise typer.Exit(code=1)
+        _fail(f"Invalid filters: {exc}")
 
     fetcher = MultiDatabaseFetcher()
 
@@ -42,19 +44,25 @@ def load(
         if not typer.confirm("Are you sure you want to continue?"):
             raise typer.Exit(code=0)
 
-    df = fetcher.fetch(
-        prepared["databases"],
-        prepared["filters"],
-        prepared["limit"],
-        date_col,
-        prepared["columns"],
-    )
+    try:
+        df = fetcher.fetch(
+            prepared["databases"],
+            prepared["filters"],
+            prepared["limit"],
+            date_col,
+            prepared["columns"],
+        )
+    except Exception as exc:
+        _fail(f"Error fetching data: {exc}")
 
     if df.empty:
         print("No data to export")
         raise typer.Exit(code=0)
 
-    export(df, out)
+    try:
+        export(df, out)
+    except Exception as exc:
+        _fail(f"Error exporting data: {exc}")
 
 
 @app.command()
@@ -67,8 +75,7 @@ def load_chunked(
     out: str = typer.Option("output.csv", "--out", "-o", help="Output CSV file"),
 ):
     if chunk_size <= 0:
-        print("'chunk_size' must be a positive integer")
-        raise typer.Exit(code=1)
+        _fail("'chunk_size' must be a positive integer")
 
     try:
         prepared = preprocess_fetch_request(
@@ -78,18 +85,20 @@ def load_chunked(
             select_columns=select_columns,
         )
     except ValueError as exc:
-        print(f"Invalid filters: {exc}")
-        raise typer.Exit(code=1)
+        _fail(f"Invalid filters: {exc}")
 
     fetcher = MultiDatabaseFetcher()
-    exported = fetcher.fetch_chunked(
-        prepared["databases"],
-        prepared["filters"],
-        chunk_size,
-        out,
-        pagination_col,
-        prepared["columns"],
-    )
+    try:
+        exported = fetcher.fetch_chunked(
+            prepared["databases"],
+            prepared["filters"],
+            chunk_size,
+            out,
+            pagination_col,
+            prepared["columns"],
+        )
+    except Exception as exc:
+        _fail(f"Error fetching chunked data: {exc}")
 
     if exported:
         print(f"Data from {prepared['databases']} loaded in chunks and exported to {out}")

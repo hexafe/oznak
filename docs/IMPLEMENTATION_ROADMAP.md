@@ -6,14 +6,14 @@ _Last updated: 2026-03-21_
 
 Current strengths:
 - Core modular structure is already present (`db`, `query`, `services`, `cli`, `api`, `storage`).
-- Unit, smoke, CLI, API, and DB-manager tests now exist and run under `pytest -q`.
-- CI pipeline is present and running tests in `.github/workflows/ci.yml`.
+- Unit, smoke, CLI integration, API, and DB-manager tests now exist and run under `pytest -q`.
+- CI pipeline is present and now includes a dedicated CLI integration job in `.github/workflows/ci.yml`.
 - Query generation is database-aware for MySQL and MSSQL.
 - Chunked export now streams directly to CSV and preserves `source_database`.
 - API fetch now returns normalized `code` / `message` / `details` error payloads for validation and execution failures.
 
 Current gaps identified:
-- CI now includes a baseline lint/type stage (`ruff` on `src/` and `mypy` on typed query/filter modules); coverage should be expanded across remaining modules.
+- CI now includes a baseline lint/type stage (`ruff` on `src/` and `mypy` on typed query/filter modules) plus a dedicated CLI integration job; coverage should be expanded across remaining modules.
 - Most verification is still mocked or local-only; live MySQL/MSSQL validation is still pending.
 - Docker/API runtime verification against real configuration is still pending.
 - Roadmap status can drift unless updated with each implementation PR.
@@ -22,10 +22,10 @@ Current gaps identified:
 
 | Phase | Scope | Status | Next step |
 |---|---|---|---|
-| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Expand lint/type coverage beyond core query/filter modules and establish API/CLI regression coverage as the next quality gate. |
+| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Expand lint/type coverage beyond core query/filter modules and continue widening typed coverage across the remaining service layers. |
 | Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟢 In Progress | Add typed validation layer, strengthen MSSQL live coverage, and extend malformed-filter/operator tests. |
 | Phase 2 | Multi-database orchestration resilience (timeouts, partial failures, observability) | 🟡 Planned | Introduce structured logging and per-database execution metrics surfaced in CLI/API output. |
-| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟢 In Progress | Add live API smoke checks, improve UX messaging, and verify real database flows beyond mocks. |
+| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟢 In Progress | Add live API smoke checks and verify real database flows beyond mocks. |
 | Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟢 In Progress | Validate chunked exports on real datasets and extend export options beyond current CSV-first chunking. |
 | Phase 5 | Deployment and operations readiness (container hardening, env templates, release process) | 🟡 Planned | Add release checklist, semantic version workflow, and deployment docs for dev/staging/prod environments. |
 
@@ -112,6 +112,7 @@ The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-
   - CI executes CLI integration tests in a dedicated stage.
 - Risk/rollback: Low-medium CI runtime risk; rollback by splitting heavy scenarios into smoke + nightly tiers.
 - Dependencies: PR3.1 must land before PR3.2.
+- Delivery status: Implemented on 2026-03-21 in `src/cli/main.py`, `tests/test_cli/test_main.py`, `.github/workflows/ci.yml`, and `pytest.ini`.
 
 ### Phase 4 — Data export and post-processing workflow
 

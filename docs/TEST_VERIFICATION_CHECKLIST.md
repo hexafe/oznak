@@ -12,7 +12,9 @@ _Last updated: 2026-03-21_
 - Run `python -m src.main --help`
 - Run `python -m src.main load --help`
 - Run `python -m src.main load-chunked --help`
+- Run `pytest -q -m cli_integration`
 - Expected result: all commands render help successfully
+- Expected result: CLI integration tests pass in isolation
 
 ## 3. API smoke verification
 
