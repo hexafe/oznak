@@ -1,6 +1,10 @@
 import re
 from typing import Any
 
+from oznak.filters import QueryFilter
+from oznak.profiles import DatabaseProfile, validate_identifier
+from oznak.query_builder import QuerySpec, compile_query
+
 
 def _quote_identifier(identifier: str, db_type: str) -> str:
     if db_type == "mssql":
@@ -64,69 +68,24 @@ def build_query(
     columns: list[str] | None = None,
     db_type: str = "mysql",
 ) -> tuple[str, dict[str, Any]]:
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
-        raise ValueError(f"Invalid table name: {table}")
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", date_column):
-        raise ValueError(f"Invalid date column name: {date_column}")
-    if db_type not in {"mysql", "mssql"}:
-        raise ValueError(f"Unsupported DB type: {db_type}")
-
-    if columns is not None:
-        for col in columns:
-            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
-                raise ValueError(f"Invalid column name: {col}")
-
-    if limit:
-        if not isinstance(limit, int) or limit <= 0:
-            raise ValueError("LIMIT must be a positive integer")
-
-    select_clause = _build_select_clause(columns, db_type, limit)
-    safe_table = _quote_identifier(table, db_type)
-    safe_date_col = _quote_identifier(date_column, db_type)
-
-    where_conditions = []
-    params: dict[str, Any] = {}
-    param_counter = 0
-
-    for filter_str in filters:
-        column, operator, value = parse_filter_string(filter_str)
-        safe_column = _quote_identifier(column, db_type)
-
-        if operator in ["LIKE", "NOT LIKE"]:
-            param_name = f"param_{param_counter}"
-            where_conditions.append(f"{safe_column} {operator} :{param_name}")
-            params[param_name] = value
-            param_counter += 1
-        elif operator in ["IN", "NOT IN"]:
-            values = [v.strip() for v in value.split(",") if v.strip()]
-            if not values:
-                raise ValueError(f"{operator} operator requires at least one value")
-            placeholders = []
-            for item in values:
-                param_name = f"param_{param_counter}"
-                placeholders.append(f":{param_name}")
-                params[param_name] = item
-                param_counter += 1
-            where_conditions.append(f"{safe_column} {operator} ({','.join(placeholders)})")
-        elif operator in ["IS", "IS NOT"]:
-            where_conditions.append(f"{safe_column} {operator} {value}")
-        else:
-            param_name = f"param_{param_counter}"
-            where_conditions.append(f"{safe_column} {operator} :{param_name}")
-            params[param_name] = value
-            param_counter += 1
-
-    base_query = f"{select_clause} FROM {safe_table}"
-    if where_conditions:
-        base_query = f"{base_query} WHERE {' AND '.join(where_conditions)}"
-
-    if limit:
-        if db_type == "mssql":
-            base_query = f"{base_query} ORDER BY {safe_date_col} DESC"
-        else:
-            base_query = f"{base_query} ORDER BY {safe_date_col} DESC LIMIT {limit}"
-
-    return base_query, params
+    query_filters = [_legacy_filter_to_query_filter(filter_str) for filter_str in filters]
+    profile = _legacy_profile(
+        table=table,
+        db_type=db_type,
+        columns=columns,
+        filters=query_filters,
+        date_column=date_column if limit is not None else None,
+    )
+    compiled = compile_query(
+        profile,
+        QuerySpec(
+            filters=tuple(query_filters),
+            columns=tuple(columns) if columns is not None else None,
+            limit=limit,
+            date_column=date_column if limit is not None else None,
+        ),
+    )
+    return compiled.sql, dict(compiled.params)
 
 
 def build_chunked_query(
@@ -138,72 +97,80 @@ def build_chunked_query(
     columns: list[str] | None = None,
     db_type: str = "mysql",
 ) -> tuple[str, dict[str, Any]]:
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
-        raise ValueError(f"Invalid table name: {table}")
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", pagination_column):
-        raise ValueError(f"Invalid pagination column name: {pagination_column}")
-    if db_type not in {"mysql", "mssql"}:
-        raise ValueError(f"Unsupported DB type: {db_type}")
-    if columns:
-        for col in columns:
-            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
-                raise ValueError(f"Invalid column name: {col}")
+    query_filters = [_legacy_filter_to_query_filter(filter_str) for filter_str in filters]
+    requested_columns = _chunk_columns(columns, pagination_column)
+    profile = _legacy_profile(
+        table=table,
+        db_type=db_type,
+        columns=requested_columns,
+        filters=query_filters,
+        pagination_column=pagination_column,
+    )
+    compiled = compile_query(
+        profile,
+        QuerySpec(
+            filters=tuple(query_filters),
+            columns=tuple(requested_columns) if requested_columns is not None else None,
+            chunk_size=chunk_size,
+            pagination_column=pagination_column,
+            last_pagination_value=last_value_for_pagination,
+        ),
+    )
+    return compiled.sql, dict(compiled.params)
 
-    safe_table = _quote_identifier(table, db_type)
-    safe_pagination_col = _quote_identifier(pagination_column, db_type)
 
-    if columns:
-        requested_columns = list(columns)
-        if pagination_column not in requested_columns:
-            requested_columns.append(pagination_column)
-        select_clause = _build_select_clause(
-            requested_columns,
-            db_type,
-            chunk_size if db_type == "mssql" else None,
-        )
-    else:
-        select_clause = _build_select_clause(None, db_type, chunk_size if db_type == "mssql" else None)
+def _legacy_filter_to_query_filter(filter_str: str) -> QueryFilter:
+    column, operator, value = parse_filter_string(filter_str)
+    if operator == "IS":
+        if value.upper() != "NULL":
+            raise ValueError("IS operator only supports NULL")
+        return QueryFilter.is_null(column)
+    if operator == "IS NOT":
+        if value.upper() != "NULL":
+            raise ValueError("IS NOT operator only supports NULL")
+        return QueryFilter.is_not_null(column)
+    if operator in {"IN", "NOT IN"}:
+        values = tuple(candidate.strip() for candidate in value.split(",") if candidate.strip())
+        return QueryFilter(column, operator, values)
+    return QueryFilter(column, operator, value)
 
-    where_conditions = []
-    params: dict[str, Any] = {}
-    param_counter = 0
 
-    for filter_str in filters:
-        column, operator, value = parse_filter_string(filter_str)
-        safe_column = _quote_identifier(column, db_type)
+def _legacy_profile(
+    *,
+    table: str,
+    db_type: str,
+    columns: list[str] | tuple[str, ...] | None = None,
+    filters: list[QueryFilter] | None = None,
+    date_column: str | None = None,
+    pagination_column: str | None = None,
+) -> DatabaseProfile:
+    allowed_columns: list[str] = []
+    for column in columns or []:
+        allowed_columns.append(validate_identifier(column, field_name="column name"))
+    for query_filter in filters or []:
+        allowed_columns.append(query_filter.column)
+    if date_column is not None:
+        allowed_columns.append(validate_identifier(date_column, field_name="date column name"))
+    if pagination_column is not None:
+        allowed_columns.append(validate_identifier(pagination_column, field_name="pagination column name"))
 
-        if operator in ["LIKE", "NOT LIKE"]:
-            param_name = f"param_{param_counter}"
-            where_conditions.append(f"{safe_column} {operator} :{param_name}")
-            params[param_name] = value
-            param_counter += 1
-        elif operator in ["IN", "NOT IN"]:
-            values = [v.strip() for v in value.split(",") if v.strip()]
-            if not values:
-                raise ValueError(f"{operator} operator requires at least one value")
-            placeholders = []
-            for item in values:
-                param_name = f"param_{param_counter}"
-                placeholders.append(f":{param_name}")
-                params[param_name] = item
-                param_counter += 1
-            where_conditions.append(f"({safe_column} {operator} ({','.join(placeholders)}))")
-        elif operator in ["IS", "IS NOT"]:
-            where_conditions.append(f"{safe_column} {operator} {value}")
-        else:
-            param_name = f"param_{param_counter}"
-            where_conditions.append(f"{safe_column} {operator} :{param_name}")
-            params[param_name] = value
-            param_counter += 1
+    return DatabaseProfile(
+        alias="legacy",
+        dialect=db_type,
+        host="db.example.invalid",
+        port=1433 if db_type == "mssql" else 3306,
+        database="legacy_query",
+        table=validate_identifier(table, field_name="table name"),
+        allowed_columns=tuple(dict.fromkeys(allowed_columns)),
+        timestamp_column=date_column,
+        pagination_column=pagination_column,
+    )
 
-    if last_value_for_pagination is not None:
-        where_conditions.append(f"{safe_pagination_col} > :pagination_param")
-        params["pagination_param"] = last_value_for_pagination
 
-    full_where = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
-    if db_type == "mssql":
-        query = f"{select_clause} FROM {safe_table} {full_where} ORDER BY {safe_pagination_col} ASC"
-    else:
-        query = f"{select_clause} FROM {safe_table} {full_where} ORDER BY {safe_pagination_col} ASC LIMIT {chunk_size}"
-
-    return query, params
+def _chunk_columns(columns: list[str] | None, pagination_column: str) -> list[str] | None:
+    if columns is None:
+        return None
+    requested_columns = list(columns)
+    if pagination_column not in requested_columns:
+        requested_columns.append(pagination_column)
+    return requested_columns

@@ -1,92 +1,142 @@
 # Oznak
-v0.2
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/hexafe/oznak/actions/workflows/ci.yml/badge.svg)](https://github.com/hexafe/oznak/actions/workflows/ci.yml)
+Oznak is the Hexafe industrial database access layer. It connects to configured MySQL/MSSQL process databases, fetches selected records through validated query contracts, and returns structured data plus diagnostics for CLI, TUI, API, and library consumers.
 
-*A modular data analysis system for loading, filtering, and processing data from multiple databases.*
+Oznak is independent at runtime. Consumers should import `oznak.*`, not legacy `src.*` modules.
 
-## Features
+## Current Status
 
-## Project roadmap
+- Package namespace: `oznak`
+- Version: `0.1.0`
+- Supported dialects: MySQL and MSSQL
+- Default tests use synthetic data only
+- Standalone surfaces: CLI and minimal prompt-based TUI
+- Reuse surface: typed package API with profiles, filters, fetch results, diagnostics, cancellation, and chunked fetch
 
-Implementation phases and current status are tracked in `docs/IMPLEMENTATION_ROADMAP.md`.
-
-
-- Multi-database loader (MySQL, MSSQL, more to be added)
-- Columns selection for fetching
-- Generic filtering system (LIKE, =, >, <, IN, etc.)
-- Export to CSV/Excel
-- Multi-database data aggregation
-- FastAPI read API for the same fetch flow
-- Database-aware query generation for MySQL and MSSQL
-
-## Installation
+## Install For Development
 
 ```bash
-git clone https://github.com/hexafe/oznak.git
-cd oznak
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
+## Verify
+
+```bash
+python -m pytest -q
+python -m ruff check .
+python -m compileall -q -x '^\./\.git/' .
+python -m build --sdist --wheel
+```
 
 ## Configuration
-1. Copy `.env.example` to `.env` and fill in your database credentials.
-2. Edit `config/databases.yaml` to define database connections.
-3. Each configured database must declare a supported `type` such as `mysql` or `mssql`.
 
-## Usage
-### CLI usage
+Use `config/databases.yaml` as a safe template. Public examples must stay synthetic and must not contain real hosts, credentials, database dumps, query logs, or plant-derived data.
+
+Each profile supports:
+
+- `type`: `mysql` or `mssql`
+- `host`
+- `port`
+- `database`
+- `table`
+- optional `allowed_columns`
+- optional `timestamp_column`
+- optional `pagination_column`
+- optional `connect_timeout_seconds`
+- optional `query_timeout_seconds`
+- optional `display_name`
+- optional `metadata`
+
+Credentials are resolved by alias from environment variables:
+
 ```bash
-python -m src.main load <database1,database2,...> --select-columns "<column1>,<column2>,<column3>" --filter "<column> <operator> <value>" --out <output_file>
+DATABASE1_USER=
+DATABASE1_PASSWORD=
 ```
 
-### Examples
-- Fetch data for specific reference:
+Core package modules do not load `.env` at import time.
+
+## CLI
+
 ```bash
-python -m src.main load database1,database2 --filter "RefName LIKE V123456" --out data.csv
+oznak version
+oznak profiles --config config/databases.yaml
+oznak load database1 --config config/databases.yaml --filter "Status = ACTIVE" --out output.csv
 ```
 
-- Fetch last 1000 records, ordered by date column:
+Common `load` options:
+
 ```bash
-python -m src.main load database1 --last 1000 --date_col ProductionDate --out recent_data.xlsx
+oznak load database1,database2 \
+  --select-columns "reference,status,updated_at" \
+  --filter "status = ACTIVE" \
+  --last 100 \
+  --date-col updated_at \
+  --out output.csv
 ```
 
-- Combine multiple filters and fetch specific columns data from multiple databases:
+## TUI
+
 ```bash
-python -m src.main load database1,database2,database3 --select-columns "Status,Priority,ProductionDate" --filter "Status = ACTIVE" --filter "Priority > 5" --filter "ProductionDate > 2025-01-01" --out filtered_data.csv
+oznak tui --config config/databases.yaml
 ```
 
-### Chunked export
+The TUI is a minimal terminal prompt flow for selecting profiles, columns, filters, limits, and output path. It uses the same package fetch path as the CLI.
+
+## API
+
+The package-native FastAPI app is optional:
+
 ```bash
-python -m src.main load-chunked database1,database2 --filter "Status = ACTIVE" --chunk-size 10000 --pagination-column id --out data.csv
+uvicorn oznak.api:app --host 127.0.0.1 --port 8000
 ```
 
-Notes:
-- Chunked export currently supports `.csv` output only.
-- The pagination column must be unique and indexed for reliable paging.
-- If you use `--select-columns`, the pagination column is fetched internally when needed and omitted from the final file unless you requested it.
-- SQL generation is database-aware for MySQL and MSSQL, but live validation still depends on your actual schema and driver setup.
+CLI and TUI are the primary standalone surfaces; the API is for integration/deployment scenarios.
 
-### API
-```bash
-uvicorn src.api.rest:app --host 0.0.0.0 --port 8000
+## Library API
+
+```python
+from oznak import (
+    DatabaseProfile,
+    EnvironmentCredentialProvider,
+    FetchRequest,
+    QueryFilter,
+    fetch_records,
+)
+
+profile = DatabaseProfile(
+    alias="database1",
+    dialect="mysql",
+    host="db1.example.invalid",
+    port=3306,
+    database="sample_process_db_1",
+    table="sample_measurements",
+    allowed_columns=("id", "status", "updated_at"),
+    timestamp_column="updated_at",
+    pagination_column="id",
+)
+
+request = FetchRequest(
+    profiles=(profile,),
+    filters=(QueryFilter("status", "=", "ACTIVE"),),
+    columns=("id", "status", "updated_at"),
+    limit=100,
+    date_column="updated_at",
+)
+
+result = fetch_records(request, credential_provider=EnvironmentCredentialProvider())
 ```
 
-Health check:
-```bash
-curl http://127.0.0.1:8000/health
-```
+Use `fetch_records_chunked(...)` for chunked reads with a pagination column. Both fetch paths return `FetchResult` with per-source diagnostics.
 
-Fetch data:
-```bash
-curl "http://127.0.0.1:8000/fetch?databases=database1,database2&filters=Status%20%3D%20ACTIVE&last=100"
-```
+## Safety Notes
 
-## More options
-```bash
-python -m src.main --help
-```
+- Filters are typed and parameterized.
+- `IS` and `IS NOT` are restricted to `NULL` predicates.
+- Columns are validated against configured profile allowlists when allowlists are present.
+- Profile timeout fields are typed and converted to safe dialect-specific engine options.
+- Diagnostics redact credentials and connection strings.
+- Default tests do not require live databases.
+- Live database tests should be opt-in integration tests only.

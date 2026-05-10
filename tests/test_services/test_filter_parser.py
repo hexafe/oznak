@@ -64,8 +64,13 @@ def test_parse_filters_normalizes_in_values():
 
 
 def test_parse_filters_rejects_is_with_unsupported_value():
-    with pytest.raises(ValueError, match="only supports NULL, TRUE, or FALSE"):
+    with pytest.raises(ValueError, match="only supports NULL"):
         parse_filters(["DeletedAt IS unknown"], last=None)
+
+
+def test_parse_filters_rejects_is_with_boolean_literals():
+    with pytest.raises(ValueError, match="only supports NULL"):
+        parse_filters(["DeletedAt IS TRUE"], last=None)
 
 
 def test_parse_filters_accepts_typed_filter_object():

@@ -261,6 +261,22 @@ def test_build_query_invalid_date_column_name():
     with pytest.raises(ValueError, match="Invalid date column name"):
         build_query(table, filters, limit=limit, date_column=date_column)
 
+
+def test_build_query_rejects_unsafe_is_predicate_value():
+    with pytest.raises(ValueError, match="IS operator only supports NULL"):
+        build_query("my_table", ["DeletedAt IS NULL OR 1=1"])
+
+
+def test_build_query_rejects_unsafe_is_not_predicate_value():
+    with pytest.raises(ValueError, match="IS NOT operator only supports NULL"):
+        build_query("my_table", ["DeletedAt IS NOT NULL OR 1=1"])
+
+
+@pytest.mark.parametrize("bad_limit", [0, -1, "10", True])
+def test_build_query_rejects_invalid_limit_values(bad_limit):
+    with pytest.raises(ValueError, match="limit"):
+        build_query("my_table", [], limit=bad_limit)
+
 """ Unit tests for --select-column functionality """
 
 def test_build_query_with_select_columns_list():
@@ -417,6 +433,12 @@ def test_build_chunked_query_first_chunk():
     # Assert
     assert query == expected_query
     assert params == expected_params
+
+
+@pytest.mark.parametrize("bad_chunk_size", [0, -1, "100", True])
+def test_build_chunked_query_rejects_invalid_chunk_size_values(bad_chunk_size):
+    with pytest.raises(ValueError, match="chunk_size"):
+        build_chunked_query("my_table", [], bad_chunk_size, None, "timestamp")
 
 def test_build_chunked_query_subsequent_chunk():
     """

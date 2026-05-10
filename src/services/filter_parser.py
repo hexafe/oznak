@@ -52,8 +52,8 @@ def _normalize_filter_value(operator: str, value: str) -> str:
 
     if operator in {"IS", "IS NOT"}:
         normalized_value = value.upper()
-        if normalized_value not in {"NULL", "TRUE", "FALSE"}:
-            raise ValueError(f"{operator} operator only supports NULL, TRUE, or FALSE values")
+        if normalized_value != "NULL":
+            raise ValueError(f"{operator} operator only supports NULL values")
         return normalized_value
 
     return value
