@@ -539,6 +539,29 @@ def test_build_query_with_limit_mssql():
     assert query == expected_query
     assert params == expected_params
 
+
+def test_build_query_with_limit_mssql_can_disable_order_by():
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    limit = 50
+    date_column = "CreatedAt"
+
+    expected_query = "SELECT TOP 50 * FROM [my_table] WHERE [Status] = :param_0"
+    expected_params = {"param_0": "ACTIVE"}
+
+    query, params = build_query(
+        table,
+        filters,
+        limit=limit,
+        date_column=date_column,
+        db_type="mssql",
+        order_by_enabled=False,
+    )
+
+    assert query == expected_query
+    assert params == expected_params
+
+
 def test_build_query_with_select_columns_mssql():
     table = "my_table"
     filters = ["Status = ACTIVE"]

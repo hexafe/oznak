@@ -15,6 +15,7 @@ class FetchRequest:
     columns: tuple[str, ...] | None = None
     limit: int | None = None
     date_column: str | None = None
+    order_by_enabled: bool | None = None
     timeout_seconds: float | None = None
 
     def __post_init__(self) -> None:
@@ -24,6 +25,8 @@ class FetchRequest:
             raise ValueError("FetchRequest.limit must be a positive integer")
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("FetchRequest.timeout_seconds must be positive")
+        if self.order_by_enabled is not None and type(self.order_by_enabled) is not bool:
+            raise ValueError("FetchRequest.order_by_enabled must be a boolean when provided")
         if self.columns is not None:
             columns = tuple(dict.fromkeys(self.columns))
             for column in columns:

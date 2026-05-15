@@ -46,6 +46,7 @@ Each profile supports:
 - optional `pagination_column`
 - optional `connect_timeout_seconds`
 - optional `query_timeout_seconds`
+- optional `order_by_enabled` (defaults to `true`; set `false` to omit server-side sorting)
 - optional `display_name`
 - optional `metadata`
 
@@ -74,6 +75,7 @@ oznak load database1,database2 \
   --filter "status = ACTIVE" \
   --last 100 \
   --date-col updated_at \
+  --no-order-by \
   --out output.csv
 ```
 
@@ -116,6 +118,7 @@ profile = DatabaseProfile(
     allowed_columns=("id", "status", "updated_at"),
     timestamp_column="updated_at",
     pagination_column="id",
+    order_by_enabled=True,
 )
 
 request = FetchRequest(

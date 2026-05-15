@@ -114,6 +114,43 @@ def test_load_command_exports_csv(monkeypatch, tmp_path) -> None:
     assert pd.read_csv(out_path).to_dict(orient="records") == [{"refname": "A1", "status": "ACTIVE"}]
 
 
+def test_load_command_can_disable_server_order_by(monkeypatch, tmp_path) -> None:
+    out_path = tmp_path / "result.csv"
+    monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
+
+    def fake_fetch_records(request, credential_provider=None):
+        assert request.order_by_enabled is False
+        return FetchResult(
+            data=pd.DataFrame([{"refname": "A1"}]),
+            source_results=(
+                SourceFetchDiagnostics(
+                    source_alias="db_a",
+                    status=SourceFetchStatus.SUCCESS,
+                    row_count=1,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("oznak.cli.fetch_records", fake_fetch_records)
+
+    result = runner.invoke(
+        app,
+        [
+            "load",
+            "db_a",
+            "--config",
+            "unused.yaml",
+            "--last",
+            "10",
+            "--no-order-by",
+            "--out",
+            str(out_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+
+
 def test_load_command_rejects_unsafe_is_filter(monkeypatch) -> None:
     monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
 

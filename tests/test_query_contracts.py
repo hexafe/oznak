@@ -60,6 +60,29 @@ def test_mssql_query_uses_brackets_and_top_limit():
     assert dict(compiled.params) == {"param_0": "SCRAP"}
 
 
+def test_limited_query_can_omit_order_by_for_low_memory_servers():
+    mysql_compiled = compile_query(
+        _profile("mysql"),
+        QuerySpec(
+            columns=("reference", "status"),
+            limit=50,
+            order_by_enabled=False,
+        ),
+    )
+    mssql_compiled = compile_query(
+        _profile("mssql"),
+        QuerySpec(
+            columns=("reference", "status"),
+            limit=10,
+            date_column="updated_at",
+            order_by_enabled=False,
+        ),
+    )
+
+    assert mysql_compiled.sql == "SELECT `reference`, `status` FROM `records` LIMIT 50"
+    assert mssql_compiled.sql == "SELECT TOP 10 [reference], [status] FROM [records]"
+
+
 def test_rejects_disallowed_selected_filter_date_and_pagination_columns():
     profile = _profile()
 
@@ -143,3 +166,8 @@ def test_chunked_query_uses_pagination_column_and_chunk_size_by_dialect():
         "SELECT TOP 100 * FROM [records] WHERE [id] > :pagination_param ORDER BY [id] ASC"
     )
     assert dict(mssql_compiled.params) == {"pagination_param": 25}
+
+
+def test_chunked_query_rejects_disabled_order_by():
+    with pytest.raises(OznakValidationError, match="ORDER BY"):
+        compile_query(_profile(), QuerySpec(chunk_size=100, order_by_enabled=False))

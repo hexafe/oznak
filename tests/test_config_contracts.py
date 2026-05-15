@@ -56,6 +56,7 @@ databases:
       cell: A1
     connect_timeout_seconds: 3
     query_timeout_seconds: 7.5
+    order_by_enabled: false
 """.strip()
         + "\n",
         encoding="utf-8",
@@ -71,6 +72,7 @@ databases:
     assert profile.metadata["cell"] == "A1"
     assert profile.connect_timeout_seconds == 3.0
     assert profile.query_timeout_seconds == 7.5
+    assert profile.order_by_enabled is False
 
 
 def test_load_database_profiles_rejects_invalid_yaml(tmp_path):
@@ -189,4 +191,26 @@ databases:
     )
 
     with pytest.raises(OznakValidationError, match="query_timeout_seconds"):
+        load_database_profiles(config_path)
+
+
+@pytest.mark.parametrize("value", ["false", 0, 1, None])
+def test_load_database_profiles_rejects_invalid_order_by_enabled(tmp_path, value):
+    config_path = tmp_path / "databases.yaml"
+    config_path.write_text(
+        f"""
+databases:
+  assembly:
+    type: mysql
+    host: db.example.invalid
+    port: 3306
+    database: process_db
+    table: records
+    order_by_enabled: {value!r}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(OznakValidationError, match="order_by_enabled"):
         load_database_profiles(config_path)

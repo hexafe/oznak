@@ -52,6 +52,7 @@ def fetch(
     time_to: Optional[str] = None,
     last_n: Optional[int] = None,
     reference: Optional[str] = None,
+    order_by: bool = True,
 ) -> dict[str, object]:
     try:
         loaded_profiles = load_database_profiles(config)
@@ -82,6 +83,7 @@ def fetch(
             columns=selected_columns,
             limit=effective_last,
             date_column=date_col if effective_last is not None else None,
+            order_by_enabled=order_by,
         )
     except (OznakConfigurationError, OznakValidationError, ValueError) as exc:
         raise validation_error(str(exc), {"field": "request"}) from exc

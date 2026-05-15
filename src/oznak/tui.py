@@ -35,6 +35,13 @@ def run_tui(
         selected_columns = _prompt_select_columns(selected_profiles, prompt=prompt, output=output)
         parsed_filters = _prompt_filters(prompt=prompt, output=output)
         last, date_column = _prompt_limit(prompt=prompt)
+        order_by_enabled = True
+        if last is not None:
+            order_by_enabled = _prompt_yes_no(
+                "Use server-side ORDER BY? [Y/n]: ",
+                default=True,
+                prompt=prompt,
+            )
         out_path = _prompt_output_path(prompt=prompt)
 
         should_run = _prompt_yes_no("Run fetch now? [y/N]: ", default=False, prompt=prompt)
@@ -48,6 +55,7 @@ def run_tui(
             columns=selected_columns,
             limit=last,
             date_column=date_column if last is not None else None,
+            order_by_enabled=order_by_enabled,
         )
     except (OznakConfigurationError, OznakValidationError, ValueError) as exc:
         output(f"Validation error: {exc}")

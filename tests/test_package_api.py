@@ -37,6 +37,7 @@ def test_package_api_fetch_uses_package_contracts(monkeypatch):
         captured["limit"] = request.limit
         captured["date_column"] = request.date_column
         captured["columns"] = request.columns
+        captured["order_by_enabled"] = request.order_by_enabled
         assert credential_provider is not None
         return FetchResult(
             data=pd.DataFrame([{"RefName": "A1", "Status": "ACTIVE"}]),
@@ -58,6 +59,7 @@ def test_package_api_fetch_uses_package_contracts(monkeypatch):
         last=5,
         date_col="CreatedAt",
         select_columns="RefName,Status",
+        order_by=False,
     )
 
     assert response == {
@@ -71,6 +73,7 @@ def test_package_api_fetch_uses_package_contracts(monkeypatch):
         "limit": 5,
         "date_column": "CreatedAt",
         "columns": ("RefName", "Status"),
+        "order_by_enabled": False,
     }
 
 

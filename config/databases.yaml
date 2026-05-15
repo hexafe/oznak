@@ -19,6 +19,7 @@ databases:
     port: 1433
     database: sample_process_db_3
     table: sample_main_data
+    order_by_enabled: false
 
   database4:
     type: mysql

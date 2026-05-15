@@ -26,6 +26,7 @@ def fetch(
     time_to: Optional[str] = None,
     last_n: Optional[int] = None,
     reference: Optional[str] = None,
+    order_by: bool = True,
 ):
     combined_filters = list(filters) if isinstance(filters, list) else []
     if time_from:
@@ -54,13 +55,23 @@ def fetch(
         raise validation_error("databases is required", {"field": "databases"})
 
     try:
-        df = fetcher.fetch(
-            prepared["databases"],
-            prepared["filters"],
-            prepared["limit"],
-            normalized_date_col,
-            prepared["columns"],
-        )
+        if order_by:
+            df = fetcher.fetch(
+                prepared["databases"],
+                prepared["filters"],
+                prepared["limit"],
+                normalized_date_col,
+                prepared["columns"],
+            )
+        else:
+            df = fetcher.fetch(
+                prepared["databases"],
+                prepared["filters"],
+                prepared["limit"],
+                normalized_date_col,
+                prepared["columns"],
+                order_by_enabled=False,
+            )
     except Exception as exc:
         raise execution_error(
             "database fetch failed",

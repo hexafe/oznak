@@ -67,6 +67,7 @@ def build_query(
     date_column: str = "TimeStamp",
     columns: list[str] | None = None,
     db_type: str = "mysql",
+    order_by_enabled: bool = True,
 ) -> tuple[str, dict[str, Any]]:
     query_filters = [_legacy_filter_to_query_filter(filter_str) for filter_str in filters]
     profile = _legacy_profile(
@@ -83,6 +84,7 @@ def build_query(
             columns=tuple(columns) if columns is not None else None,
             limit=limit,
             date_column=date_column if limit is not None else None,
+            order_by_enabled=order_by_enabled,
         ),
     )
     return compiled.sql, dict(compiled.params)
@@ -96,6 +98,7 @@ def build_chunked_query(
     pagination_column: str = "id",
     columns: list[str] | None = None,
     db_type: str = "mysql",
+    order_by_enabled: bool = True,
 ) -> tuple[str, dict[str, Any]]:
     query_filters = [_legacy_filter_to_query_filter(filter_str) for filter_str in filters]
     requested_columns = _chunk_columns(columns, pagination_column)
@@ -114,6 +117,7 @@ def build_chunked_query(
             chunk_size=chunk_size,
             pagination_column=pagination_column,
             last_pagination_value=last_value_for_pagination,
+            order_by_enabled=order_by_enabled,
         ),
     )
     return compiled.sql, dict(compiled.params)

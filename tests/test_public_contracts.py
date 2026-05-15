@@ -87,6 +87,19 @@ def test_database_profile_accepts_positive_timeout_fields():
     assert profile.query_timeout_seconds == 2.5
 
 
+def test_database_profile_rejects_non_boolean_order_by_enabled():
+    with pytest.raises(OznakValidationError, match="order_by_enabled"):
+        DatabaseProfile(
+            alias="assembly",
+            dialect="mysql",
+            host="db.example.invalid",
+            port=3306,
+            database="process_db",
+            table="records",
+            order_by_enabled="false",
+        )
+
+
 def test_mapping_credential_provider_returns_redactable_credentials():
     provider = MappingCredentialProvider({"assembly": ("svc_user", "secret")})
 
@@ -141,6 +154,9 @@ def test_fetch_request_validates_public_boundary():
     )
 
     assert request.columns == ("reference", "status")
+
+    with pytest.raises(ValueError, match="order_by_enabled"):
+        FetchRequest(profiles=(_profile(),), order_by_enabled="false")
 
 
 def test_fetch_result_distinguishes_partial_success():

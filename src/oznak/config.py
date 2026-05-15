@@ -86,6 +86,7 @@ def _parse_profile(alias: str, raw_profile: Mapping[str, Any], path: Path) -> Da
             display_name=raw_profile.get("display_name"),
             connect_timeout_seconds=raw_profile.get("connect_timeout_seconds"),
             query_timeout_seconds=raw_profile.get("query_timeout_seconds"),
+            order_by_enabled=raw_profile.get("order_by_enabled", True),
             metadata=metadata,
         )
     except OznakValidationError as exc:

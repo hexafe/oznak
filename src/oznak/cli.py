@@ -97,6 +97,11 @@ def load(
         help="Date/timestamp column used for --last ordering",
     ),
     out: str = typer.Option("output.csv", "--out", help="Output file path (.csv/.xlsx/.xls)"),
+    no_order_by: bool = typer.Option(
+        False,
+        "--no-order-by",
+        help="Omit server-side ORDER BY for low-memory SQL servers.",
+    ),
 ) -> None:
     try:
         aliases = _parse_aliases(databases)
@@ -114,6 +119,7 @@ def load(
             columns=selected_columns,
             limit=last,
             date_column=date_col if last is not None else None,
+            order_by_enabled=not no_order_by,
         )
     except (OznakConfigurationError, OznakValidationError, ValueError) as exc:
         _fail(f"Validation error: {exc}")

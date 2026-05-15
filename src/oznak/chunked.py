@@ -69,6 +69,7 @@ def fetch_records_chunked(
                     chunk_size=chunk_size,
                     pagination_column=pagination_column,
                     last_pagination_value=last_pagination_value,
+                    order_by_enabled=_resolve_order_by_enabled(request, profile),
                 )
                 compiled = compile_query(profile, query_spec)
                 query_summary = _compiled_query_summary(profile, compiled.sql)
@@ -161,6 +162,12 @@ def fetch_records_chunked(
 
 def _default_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> Any:
     return create_sqlalchemy_engine(profile, credentials)
+
+
+def _resolve_order_by_enabled(request: FetchRequest, profile: DatabaseProfile) -> bool:
+    if request.order_by_enabled is None:
+        return profile.order_by_enabled
+    return request.order_by_enabled
 
 
 def _raise_if_cancelled(cancellation_token: CancellationToken | None) -> None:

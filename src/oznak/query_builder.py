@@ -19,6 +19,7 @@ class QuerySpec:
     chunk_size: int | None = None
     pagination_column: str | None = None
     last_pagination_value: Any = None
+    order_by_enabled: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "filters", tuple(self.filters))
@@ -33,6 +34,8 @@ class QuerySpec:
             validate_identifier(self.date_column, field_name="date column")
         if self.pagination_column is not None:
             validate_identifier(self.pagination_column, field_name="pagination column")
+        if type(self.order_by_enabled) is not bool:
+            raise OznakValidationError("QuerySpec.order_by_enabled must be a boolean")
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,7 @@ def compile_query(profile: DatabaseProfile, spec: QuerySpec) -> CompiledQuery:
             chunk_size=chunk_size,
             pagination_column=spec.pagination_column,
             last_pagination_value=spec.last_pagination_value,
+            order_by_enabled=spec.order_by_enabled,
         )
 
     return _compile_limited_query(
@@ -71,6 +75,7 @@ def compile_query(profile: DatabaseProfile, spec: QuerySpec) -> CompiledQuery:
         params=params,
         limit=limit,
         date_column=spec.date_column,
+        order_by_enabled=spec.order_by_enabled,
     )
 
 
@@ -82,8 +87,11 @@ def _compile_limited_query(
     params: dict[str, Any],
     limit: int | None,
     date_column: str | None,
+    order_by_enabled: bool,
 ) -> CompiledQuery:
-    order_column = date_column or (profile.timestamp_column if limit is not None else None)
+    order_column = None
+    if order_by_enabled:
+        order_column = date_column or (profile.timestamp_column if limit is not None else None)
     if order_column is not None:
         order_column = profile.require_allowed_column(order_column)
 
@@ -112,7 +120,11 @@ def _compile_chunked_query(
     chunk_size: int,
     pagination_column: str | None,
     last_pagination_value: Any,
+    order_by_enabled: bool,
 ) -> CompiledQuery:
+    if not order_by_enabled:
+        raise OznakValidationError("Chunked fetch requires ORDER BY for deterministic pagination")
+
     resolved_pagination_column = pagination_column or profile.pagination_column
     if resolved_pagination_column is None:
         raise OznakValidationError("QuerySpec.chunk_size requires a pagination column")

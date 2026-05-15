@@ -73,6 +73,28 @@ def test_fetch_records_success_concatenates_rows_in_profile_order():
     assert all("<redacted-host>" in item.query_summary for item in result.source_results)
 
 
+def test_fetch_records_can_disable_order_by_per_request():
+    profile = _profile("alpha")
+    read_calls: list[str] = []
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> str:
+        return "engine"
+
+    def fake_read_sql(sql: str, engine: str, params: dict[str, object] | None = None) -> pd.DataFrame:
+        read_calls.append(sql)
+        return pd.DataFrame([{"id": 1, "value": "A1"}])
+
+    result = fetch_records(
+        _request(profile, order_by_enabled=False),
+        engine_factory=fake_engine_factory,
+        read_sql=fake_read_sql,
+    )
+
+    assert result.errors == ()
+    assert result.row_count == 1
+    assert read_calls == ["SELECT `id`, `value` FROM `records` LIMIT 10"]
+
+
 def test_fetch_records_marks_no_rows_as_no_rows_with_warning():
     profile = _profile("alpha")
 

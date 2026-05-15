@@ -80,6 +80,28 @@ def test_fetch_endpoint_success(mock_fetcher):
     )
 
 
+@patch("src.api.rest.fetcher")
+def test_fetch_endpoint_can_disable_order_by(mock_fetcher):
+    mock_fetcher.fetch.return_value = pd.DataFrame([{"RefName": "A1"}])
+
+    response = rest.fetch(
+        databases="database1",
+        filters=["Status = ACTIVE"],
+        last=5,
+        order_by=False,
+    )
+
+    assert response["rows"] == 1
+    mock_fetcher.fetch.assert_called_once_with(
+        ["database1"],
+        ["Status = ACTIVE"],
+        5,
+        "TimeStamp",
+        None,
+        order_by_enabled=False,
+    )
+
+
 def test_fetch_handler_rejects_invalid_database_name():
     module = importlib.import_module("src.api.rest")
 

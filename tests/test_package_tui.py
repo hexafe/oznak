@@ -43,6 +43,7 @@ def test_run_tui_fetches_and_exports_csv(monkeypatch, tmp_path) -> None:
             "",
             "5",
             "updated_at",
+            "",
             str(out_path),
             "y",
         ]
@@ -61,6 +62,7 @@ def test_run_tui_fetches_and_exports_csv(monkeypatch, tmp_path) -> None:
         assert request.columns == ("refname", "status")
         assert request.limit == 5
         assert request.date_column == "updated_at"
+        assert request.order_by_enabled is True
         assert len(request.filters) == 1
         assert request.filters[0].column == "status"
         assert request.filters[0].operator.value == "="
@@ -134,3 +136,51 @@ def test_run_tui_aborts_before_fetch(monkeypatch, tmp_path) -> None:
     assert exit_code == 1
     assert called["fetch"] is False
     assert any("Aborted by user" in msg for msg in messages)
+
+
+def test_run_tui_can_disable_server_order_by(monkeypatch, tmp_path) -> None:
+    config_path = tmp_path / "databases.yaml"
+    out_path = tmp_path / "out.csv"
+    _write_config(config_path)
+
+    answers = iter(
+        [
+            "db_a",
+            "",
+            "",
+            "5",
+            "updated_at",
+            "n",
+            str(out_path),
+            "y",
+        ]
+    )
+
+    def fake_fetch_records(
+        request,
+        credential_provider=None,
+        cancellation_token=None,
+        progress_callback=None,
+        **kwargs,
+    ):
+        assert request.order_by_enabled is False
+        return FetchResult(
+            data=pd.DataFrame([{"refname": "A1"}]),
+            source_results=(
+                SourceFetchDiagnostics(
+                    source_alias="db_a",
+                    status=SourceFetchStatus.SUCCESS,
+                    row_count=1,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("oznak.tui.fetch_records", fake_fetch_records)
+
+    exit_code = run_tui(
+        config_path=str(config_path),
+        prompt=lambda _question: next(answers),
+        output=lambda _message: None,
+    )
+
+    assert exit_code == 0

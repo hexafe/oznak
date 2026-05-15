@@ -37,6 +37,12 @@ def _normalize_timeout_seconds(value: float | int | None, *, field_name: str) ->
     return normalized
 
 
+def _normalize_bool(value: bool, *, field_name: str) -> bool:
+    if type(value) is not bool:
+        raise OznakValidationError(f"{field_name} must be a boolean")
+    return value
+
+
 @dataclass(frozen=True)
 class DatabaseProfile:
     alias: str
@@ -51,6 +57,7 @@ class DatabaseProfile:
     display_name: str | None = None
     connect_timeout_seconds: float | int | None = None
     query_timeout_seconds: float | int | None = None
+    order_by_enabled: bool = True
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -76,12 +83,16 @@ class DatabaseProfile:
         query_timeout_seconds = _normalize_timeout_seconds(
             self.query_timeout_seconds, field_name="query_timeout_seconds"
         )
+        order_by_enabled = _normalize_bool(
+            self.order_by_enabled, field_name="order_by_enabled"
+        )
 
         object.__setattr__(self, "dialect", dialect)
         object.__setattr__(self, "host", self.host.strip())
         object.__setattr__(self, "allowed_columns", allowed_columns)
         object.__setattr__(self, "connect_timeout_seconds", connect_timeout_seconds)
         object.__setattr__(self, "query_timeout_seconds", query_timeout_seconds)
+        object.__setattr__(self, "order_by_enabled", order_by_enabled)
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     def require_allowed_column(self, column: str) -> str:

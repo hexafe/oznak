@@ -47,6 +47,7 @@ def fetch_records(
                 columns=request.columns,
                 limit=request.limit,
                 date_column=request.date_column,
+                order_by_enabled=_resolve_order_by_enabled(request, profile),
             )
             compiled = compile_query(profile, query_spec)
             query_summary = _compiled_query_summary(profile, compiled.sql)
@@ -150,6 +151,12 @@ def fetch_records_chunked(
         cancellation_token=cancellation_token,
         progress_callback=progress_callback,
     )
+
+
+def _resolve_order_by_enabled(request: FetchRequest, profile: DatabaseProfile) -> bool:
+    if request.order_by_enabled is None:
+        return profile.order_by_enabled
+    return request.order_by_enabled
 
 
 def _default_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> Any:
