@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 from typer.testing import CliRunner
 
 from oznak import __version__
@@ -25,6 +26,7 @@ def _profile(alias: str = "db_a") -> DatabaseProfile:
     )
 
 
+@pytest.mark.cli_integration
 def test_version_command_prints_package_version() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
@@ -60,6 +62,7 @@ databases:
     assert "internal.example" not in result.stdout
 
 
+@pytest.mark.cli_integration
 def test_load_command_exports_csv(monkeypatch, tmp_path) -> None:
     out_path = tmp_path / "result.csv"
     loaded_profiles = {"db_a": _profile("db_a")}
@@ -194,6 +197,7 @@ def test_load_command_passes_max_workers_and_export_profile(monkeypatch, tmp_pat
     assert out_path.read_text(encoding="utf-8").splitlines()[0] == "refname;status"
 
 
+@pytest.mark.cli_integration
 def test_load_chunked_command_streams_export(monkeypatch, tmp_path) -> None:
     out_path = tmp_path / "chunked.csv"
     monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
@@ -302,6 +306,7 @@ def test_load_command_returns_nonzero_on_fetch_failure(monkeypatch) -> None:
     assert "Fetch error: Source 'db_a' query failed" in result.stderr
 
 
+@pytest.mark.cli_integration
 def test_tui_command_delegates_to_package_tui(monkeypatch) -> None:
     called: dict[str, str] = {}
 
