@@ -1,28 +1,149 @@
 # Oznak Implementation Roadmap
 
-_Last updated: 2026-02-25_
+_Last updated: 2026-05-16_
 
 ## Repository review summary
 
 Current strengths:
-- Core modular structure is already present (`db`, `query`, `services`, `cli`, `api`, `storage`).
-- Unit and smoke tests exist for query and multi-database fetcher flows.
+- Installable package metadata exists in `pyproject.toml`.
+- Canonical package namespace exists at `src/oznak/`.
+- Public contracts cover profiles, credentials, normalized query requests, typed filters, query compilation, fetch requests/results, diagnostics, cancellation, bounded concurrency, and chunked fetch.
+- CLI entry point exists as `oznak`.
+- Minimal prompt-based TUI exists as `oznak tui`.
+- Query generation is typed, parameterized, database-aware for MySQL/MSSQL, and allowlist-aware.
+- Package fetch paths return structured per-source diagnostics and support opt-in `max_workers`.
+- Chunked reads expose bounded queue-backed streaming events as well as the compatibility `FetchResult` wrapper.
+- A no-DB synthetic chunk benchmark exercises the same chunk iterator and optional streaming CSV exporter.
+- Disposable MySQL/MSSQL live integration tests exist and stay opt-in behind
+  the `integration` marker plus `OZNAK_RUN_LIVE_DB_TESTS=1`.
+- SQLAlchemy engine creation supports typed pool tuning fields.
+- Package export profiles support CSV, XLSX, and optional Parquet.
+- Legacy `src.cli.main` and `src.api.rest` delegate to package-native surfaces.
+- Legacy `src.*` service/query/db/storage modules emit deprecation warnings.
+- Public configuration examples are synthetic-only.
+- Unit, package CLI/TUI, query, fetch, config, hygiene, API, legacy compatibility, and smoke tests run under `pytest -q`.
 
 Current gaps identified:
-- No CI pipeline in repository to run tests automatically.
-- Test discovery/import requires path setup (`src` is not on `PYTHONPATH` by default).
-- Project backlog exists (`TODO`) but no structured phased delivery plan with ownership-ready next actions.
+- Live MySQL/MSSQL validation is available but still depends on Docker and host
+  database drivers.
+- Legacy `src.*` service/query/db/storage modules still exist as deprecated
+  compatibility shims and should be removed in a later breaking release.
+- Advanced TUI diagnostics drill-down can still be polished.
 
 ## Phase plan
 
 | Phase | Scope | Status | Next step |
 |---|---|---|---|
-| Phase 0 | Baseline quality guardrails (CI + reliable test invocation) | ✅ Completed | Extend CI with linting (`ruff`) and formatting checks once tooling is added to dependencies. |
-| Phase 1 | Query subsystem hardening (filter parsing, SQL safety, edge-case behavior) | 🟡 Planned | Add typed validation layer and expand test matrix for malformed filters and unsupported operators. |
-| Phase 2 | Multi-database orchestration resilience (timeouts, partial failures, observability) | 🟡 Planned | Introduce structured logging and per-database execution metrics surfaced in CLI/API output. |
-| Phase 3 | API and CLI productization (stable contracts, error semantics, UX polish) | 🟡 Planned | Publish explicit API schema examples and add CLI golden-path + failure-path integration tests. |
-| Phase 4 | Data export and post-processing workflow (CSV/Excel ergonomics, metadata, extensibility) | 🟡 Planned | Add export profile configuration and tests for column typing, ordering, and file naming strategy. |
-| Phase 5 | Deployment and operations readiness (container hardening, env templates, release process) | 🟡 Planned | Add release checklist, semantic version workflow, and deployment docs for dev/staging/prod environments. |
+| Phase 0 | Package foundation and quality guardrails | ✅ Completed | Keep package build/import smoke in CI and release checks. |
+| Phase 1 | Query subsystem hardening | ✅ Completed | Keep live dialect validation in the opt-in integration suite. |
+| Phase 2 | Multi-database orchestration resilience | ✅ Completed | Use opt-in live DB tests for release candidate validation. |
+| Phase 3 | CLI and TUI productization | ✅ Completed | Keep advanced diagnostics drill-down in backlog. |
+| Phase 4 | Data export and post-processing workflow | ✅ Completed | Keep optional Parquet smoke coverage active where `pyarrow` is installed. |
+| Phase 5 | Deployment, API, and release readiness | ✅ Completed | Use the release process before tagging; live DB tests remain opt-in. |
+
+
+## Backlog mapping
+
+The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-sized work items. Keep roadmap planning and backlog IDs synchronized by updating both files together whenever priorities or phase targeting changes.
+
+| Backlog ID | Current roadmap phase alignment | Synchronization note |
+|---|---|---|
+| BL-001 | Phase 3 — CLI and TUI productization | TUI is now the primary standalone interactive surface; web/API is optional integration. |
+| BL-002 | Phase 1 — Query subsystem hardening | `QueryRequest` preprocessing is implemented; keep backlog item only for future live-dialect validation and advanced filter groups. |
+
+## Planned phase delivery slices
+
+### Next PR Queue
+
+**PR6.1 — Remove deprecated legacy modules**
+- Objective: Delete deprecated `src.*` compatibility modules once downstream
+  consumers have moved to `oznak.*` imports.
+- Scope: `src/db`, `src/query`, `src/services`, `src/storage`, legacy tests,
+  migration notes.
+- Acceptance criteria:
+  - Default package and CLI/TUI/API tests no longer import legacy service/query/db/storage modules.
+  - Downstream consumers have a pinned `oznak` package version or commit.
+  - The release notes call out the breaking import removal.
+
+### Completed Delivery Slices
+
+**PR4.2 — TUI export profile polish**
+- Objective: Make named export profiles selectable in `oznak tui` without making the prompt flow noisy.
+- Scope: `src/oznak/tui.py`, package TUI tests.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - TUI can choose an export profile when profiles exist in config.
+  - Existing suffix-driven CSV/XLSX/Parquet behavior remains compatible.
+  - Prompt sequence remains short and covered by tests.
+
+**PR5.1 — Release readiness**
+- Objective: Make a pinned Git commit/tag safe for downstream consumers.
+- Scope: release checklist, version policy, third-party notices, optional integration-test marker, README/roadmap.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - `python -m build` and import smoke are documented release gates.
+  - Live DB tests are marked opt-in and excluded from default tests.
+  - Windows ODBC/MySQL driver prerequisites are documented.
+  - Third-party notice obligations are documented.
+  - Version tag policy is documented.
+
+**PR2.3 — Bounded parallel chunk streaming**
+- Objective: Let parallel chunked reads stream ready chunks without buffering all
+  events from each source first.
+- Scope: `src/oznak/chunked.py`, chunked fetch tests, README/roadmap.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - `iter_records_chunked(..., max_workers=N)` yields ready chunks while slower
+    sources are still reading.
+  - Worker output uses a bounded queue to avoid unbounded per-source buffering.
+  - `fetch_records_chunked(...)` keeps deterministic source-grouped result
+    ordering for compatibility callers.
+
+**PR3.3 — No-DB benchmark and TUI summary**
+- Objective: Give developers a real performance/streaming smoke path when no
+  database access is available, and make TUI fetch outcomes easier to scan.
+- Scope: `src/oznak/benchmarks.py`, `src/oznak/cli.py`, `src/oznak/tui.py`,
+  package CLI/TUI tests, README/release docs.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - `oznak benchmark-chunked` compares worker counts using synthetic profiles
+    and injected `read_sql`.
+  - Optional `--export-dir` includes streaming CSV export overhead.
+  - `oznak tui` prints source count, row count, and per-status totals before
+    export or error handling.
+
+**PR3.4 — TUI cancellation and timeout polish**
+- Objective: Make bounded and interrupted fetches easier to operate from
+  `oznak tui`.
+- Scope: `src/oznak/tui.py`, package TUI tests, README.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - TUI prompts for optional request-level fetch timeout.
+  - Cancelled and timed-out source results are clearly separated from generic
+    validation/query failures.
+  - Keyboard interruption reports a user cancellation message.
+
+**PR2.4 — Opt-in live DB integration harness**
+- Objective: Validate package behavior and performance against disposable MySQL
+  and MSSQL instances without making live services part of default CI.
+- Scope: `tests/integration/`, container/test fixtures, release checklist.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - Integration tests are marked `@pytest.mark.integration`.
+  - Default `python -m pytest -q` remains synthetic-only.
+  - MySQL and MSSQL query/fetch/export paths are covered when explicitly run.
+  - Chunked sequential versus parallel fetch timing is measured on disposable
+    database fixture data and compared with the synthetic benchmark baseline.
+
+**PR6.0 — Legacy deprecation release**
+- Objective: Make the legacy import migration explicit without breaking current
+  compatibility consumers immediately.
+- Scope: legacy `src.*` modules, changelog, README, roadmap, release notes.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - Legacy modules emit `DeprecationWarning` with package-native replacements.
+  - Public docs tell new consumers to import from `oznak.*`.
+  - Version is bumped to `0.2.0rc1` for the release-candidate line.
 
 ## Feature-by-feature execution policy
 
@@ -36,3 +157,12 @@ For each new feature merged into the repository:
 - Update roadmap on every feature PR.
 - Re-evaluate priorities at least once per sprint.
 - Promote any blocked phase with explicit blocker notes and mitigation steps.
+- Use `docs/TEST_VERIFICATION_CHECKLIST.md` as the default manual verification sequence for release candidates.
+
+## Evidence checked
+
+- `.github/workflows/ci.yml`
+- `pytest.ini`
+- `requirements.txt`
+- `tests/test_smoke.py`
+- `docs/TEST_VERIFICATION_CHECKLIST.md`

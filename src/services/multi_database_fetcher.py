@@ -1,13 +1,18 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
+
+import pandas as pd
+
+from src._legacy import warn_legacy_module
 from src.db.manager import DBManager
 from src.query.builder import build_query
 from src.query.fetcher import fetch_data, fetch_data_chunked
-import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import os
 from src.storage.exporter import export_chunks_streaming
 
+warn_legacy_module("src.services.multi_database_fetcher", "oznak.fetcher and oznak.chunked")
 
-def _fetch_single_database(database, filters, limit, date_column, columns, db_manager_instance):
+
+def _fetch_single_database(database, filters, limit, date_column, columns, db_manager_instance, order_by_enabled=True):
     """
     Helper function to fetch data from a single database within a thread
     Returns the DataFrame with 'source_database' column or None if it fails
@@ -20,7 +25,18 @@ def _fetch_single_database(database, filters, limit, date_column, columns, db_ma
         table = cfg["table"]
         db_type = cfg["type"]
 
-        query, params = build_query(table, filters, limit, date_column, columns, db_type)
+        if order_by_enabled:
+            query, params = build_query(table, filters, limit, date_column, columns, db_type)
+        else:
+            query, params = build_query(
+                table,
+                filters,
+                limit,
+                date_column,
+                columns,
+                db_type,
+                order_by_enabled=False,
+            )
         print(f"   └── Query: {query[:50]}...") # Could be too much spam on the terminal :(
         
         df = fetch_data(engine, query, params)
@@ -59,14 +75,31 @@ class MultiDatabaseFetcher:
     def __init__(self):
         self.db = DBManager()
 
-    def fetch(self, databases: list, filters: list, limit: int = None, date_column: str = "TimeStamp", columns: list = None):
+    def fetch(
+        self,
+        databases: list,
+        filters: list,
+        limit: int = None,
+        date_column: str = "TimeStamp",
+        columns: list = None,
+        order_by_enabled: bool = True,
+    ):
         frames = []
 
         # Use ThreadPoolExecutor to fetch from multiple databases concurrently
         # max_workers could be configurable, or default to number of CPUs
         with ThreadPoolExecutor() as executor:
             future_to_database = {
-                executor.submit(_fetch_single_database, db, filters, limit, date_column, columns, self.db): db for db in databases
+                executor.submit(
+                    _fetch_single_database,
+                    db,
+                    filters,
+                    limit,
+                    date_column,
+                    columns,
+                    self.db,
+                    order_by_enabled,
+                ): db for db in databases
             }
 
             for future in as_completed(future_to_database):
@@ -79,7 +112,7 @@ class MultiDatabaseFetcher:
                     print(f"Unexpected error processing result for {database}: {e}")
 
         if not frames:
-            print(f"No data fetched from any database")
+            print("No data fetched from any database")
             return pd.DataFrame()
 
         print(f"Combining data from {len(frames)} databases...")

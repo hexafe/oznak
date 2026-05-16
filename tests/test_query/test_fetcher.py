@@ -1,8 +1,7 @@
 import pytest
 import pandas as pd
-from unittest.mock import patch, Mock, call
+from unittest.mock import patch, Mock
 from src.query.fetcher import fetch_data, fetch_data_chunked
-from sqlalchemy import text, sql
 from sqlalchemy.sql.elements import TextClause
 
 
@@ -19,7 +18,7 @@ def test_fetch_data_success_with_params(mock_read_sql):
     mock_read_sql.return_value = expected_df
 
     # Act
-    result_df = fetch_data(mock_engine, query, params)
+    fetch_data(mock_engine, query, params)
 
     # Assert
     assert mock_read_sql.call_count == 1
@@ -42,7 +41,7 @@ def test_fetch_data_success_no_params(mock_read_sql):
     mock_read_sql.return_value = expected_df
 
     # Act
-    result_df = fetch_data(mock_engine, query, params)
+    fetch_data(mock_engine, query, params)
 
     # Assert
     assert mock_read_sql.call_count == 1
@@ -65,7 +64,7 @@ def test_fetch_data_error(mock_read_sql):
     mock_read_sql.side_effect = Exception(expected_error_msg)
 
     # Act
-    result_df = fetch_data(mock_engine, query, params)
+    fetch_data(mock_engine, query, params)
 
     # Assert
     assert mock_read_sql.call_count == 1

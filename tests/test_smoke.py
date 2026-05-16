@@ -1,18 +1,17 @@
 import pytest
+import importlib
 from unittest.mock import patch, Mock
 import pandas as pd
-from sqlalchemy import text
 
 
 """ Test 1: can we import the main modules without errors? """
 def test_import_core_modules():
     try:
-        import src.db.manager
-        import src.query.builder
-        import src.query.fetcher
-        import src.services.multi_database_fetcher
-        import src.cli.main
-        import src.storage.exporter
+        importlib.import_module("src.db.manager")
+        importlib.import_module("src.query.builder")
+        importlib.import_module("src.query.fetcher")
+        importlib.import_module("src.services.multi_database_fetcher")
+        importlib.import_module("src.cli.main")
         #TODO: add other modues after implementation
     except ImportError as e:
         pytest.fail(f"Failed to import core module: {e}")
@@ -21,7 +20,6 @@ def test_import_core_modules():
 def test_instantiate_core_classes():
     try:
         from src.services.multi_database_fetcher import MultiDatabaseFetcher
-        from src.db.manager import DBManager
 
         fetcher_instance = MultiDatabaseFetcher()
         # db_manager_instance = DBManager()
@@ -51,7 +49,7 @@ def test_multi_database_fetcher_integration(mock_read_sql, mock_db_manager_class
 
     # Act
     filters = ["test_col = test_val"]
-    result_df = fetcher.fetch(["database1"], filters, limit=1, date_column="Date")
+    fetcher.fetch(["database1"], filters, limit=1, date_column="Date")
 
     # Assert
     mock_db_manager_instance.get_engine.assert_called_once_with("database1")

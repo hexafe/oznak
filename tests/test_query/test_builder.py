@@ -59,7 +59,7 @@ def test_parse_filter_string_invalid_column_name():
     invalid_filter_str = "RefName; DROP TABLE users; -- = 5"
 
     # Act & Assert
-    with pytest.raises(ValueError, match="Invalid column name"):
+    with pytest.raises(ValueError, match="Invalid filter format"):
         parse_filter_string(invalid_filter_str)
 
 def test_parse_filter_string_invalid_operator():
@@ -216,7 +216,24 @@ def test_build_query_greater_than_filter():
     assert query == expected_query
     assert params == expected_params
 
-#TODO: add more tests for all operators <, >=, <=, !=, IS, IS NOT
+@pytest.mark.parametrize(
+    ("filter_expression", "expected_condition", "expected_params"),
+    [
+        ("Value < 100", "`Value` < :param_0", {"param_0": "100"}),
+        ("Metric >= 42", "`Metric` >= :param_0", {"param_0": "42"}),
+        ("Metric <= 42", "`Metric` <= :param_0", {"param_0": "42"}),
+        ("Status != INACTIVE", "`Status` != :param_0", {"param_0": "INACTIVE"}),
+        ("DeletedAt IS NULL", "`DeletedAt` IS NULL", {}),
+        ("DeletedAt IS NOT NULL", "`DeletedAt` IS NOT NULL", {}),
+    ],
+)
+def test_build_query_operator_matrix(filter_expression, expected_condition, expected_params):
+    table = "my_table"
+
+    query, params = build_query(table, [filter_expression])
+
+    assert query == f"SELECT * FROM `{table}` WHERE {expected_condition}"
+    assert params == expected_params
 
 def test_build_query_invalid_table_name():
     """
@@ -243,6 +260,22 @@ def test_build_query_invalid_date_column_name():
     # Act & Assert
     with pytest.raises(ValueError, match="Invalid date column name"):
         build_query(table, filters, limit=limit, date_column=date_column)
+
+
+def test_build_query_rejects_unsafe_is_predicate_value():
+    with pytest.raises(ValueError, match="IS operator only supports NULL"):
+        build_query("my_table", ["DeletedAt IS NULL OR 1=1"])
+
+
+def test_build_query_rejects_unsafe_is_not_predicate_value():
+    with pytest.raises(ValueError, match="IS NOT operator only supports NULL"):
+        build_query("my_table", ["DeletedAt IS NOT NULL OR 1=1"])
+
+
+@pytest.mark.parametrize("bad_limit", [0, -1, "10", True])
+def test_build_query_rejects_invalid_limit_values(bad_limit):
+    with pytest.raises(ValueError, match="limit"):
+        build_query("my_table", [], limit=bad_limit)
 
 """ Unit tests for --select-column functionality """
 
@@ -401,6 +434,12 @@ def test_build_chunked_query_first_chunk():
     assert query == expected_query
     assert params == expected_params
 
+
+@pytest.mark.parametrize("bad_chunk_size", [0, -1, "100", True])
+def test_build_chunked_query_rejects_invalid_chunk_size_values(bad_chunk_size):
+    with pytest.raises(ValueError, match="chunk_size"):
+        build_chunked_query("my_table", [], bad_chunk_size, None, "timestamp")
+
 def test_build_chunked_query_subsequent_chunk():
     """
     Test building a query for a subsequent chunk (with last_value)
@@ -447,6 +486,25 @@ def test_build_chunked_query_with_select_columns():
     assert query == expected_query
     assert params == expected_params
 
+def test_build_query_not_like_filter():
+    table = "my_table"
+    filters = ["RefName NOT LIKE V123%"]
+
+    query, params = build_query(table, filters)
+
+    assert query == "SELECT * FROM `my_table` WHERE `RefName` NOT LIKE :param_0"
+    assert params == {"param_0": "V123%"}
+
+
+def test_build_query_is_not_filter():
+    table = "my_table"
+    filters = ["DeletedAt IS NOT NULL"]
+
+    query, params = build_query(table, filters)
+
+    assert query == "SELECT * FROM `my_table` WHERE `DeletedAt` IS NOT NULL"
+    assert params == {}
+
 def test_build_chunked_query_adds_pagination_column_when_missing():
     """
     Test that the pagination column is always included in chunked queries
@@ -480,6 +538,29 @@ def test_build_query_with_limit_mssql():
 
     assert query == expected_query
     assert params == expected_params
+
+
+def test_build_query_with_limit_mssql_can_disable_order_by():
+    table = "my_table"
+    filters = ["Status = ACTIVE"]
+    limit = 50
+    date_column = "CreatedAt"
+
+    expected_query = "SELECT TOP 50 * FROM [my_table] WHERE [Status] = :param_0"
+    expected_params = {"param_0": "ACTIVE"}
+
+    query, params = build_query(
+        table,
+        filters,
+        limit=limit,
+        date_column=date_column,
+        db_type="mssql",
+        order_by_enabled=False,
+    )
+
+    assert query == expected_query
+    assert params == expected_params
+
 
 def test_build_query_with_select_columns_mssql():
     table = "my_table"

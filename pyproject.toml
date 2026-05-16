@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oznak"
+version = "0.2.0rc1"
+description = "Hexafe industrial database access layer"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.10"
+authors = [
+  { name = "Hexafe" },
+]
+dependencies = [
+  "fastapi",
+  "mysql-connector-python",
+  "openpyxl",
+  "pandas",
+  "PyMySQL",
+  "pyodbc",
+  "python-dotenv",
+  "pyyaml",
+  "sqlalchemy",
+  "typer",
+  "uvicorn",
+]
+
+[project.scripts]
+oznak = "oznak.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "build",
+  "mypy",
+  "pytest",
+  "ruff",
+]
+parquet = [
+  "pyarrow",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["oznak*"]
+
+[tool.setuptools.package-data]
+oznak = ["py.typed"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__/*", "*.pyc", "*.pyo"]

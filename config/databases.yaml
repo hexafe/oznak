@@ -1,29 +1,44 @@
 databases:
   database1:
     type: mysql
-    host: 192.168.10.11
+    host: db1.example.invalid
     port: 3306
-    database: prod_database1
-    table: measurements
+    database: sample_process_db_1
+    table: sample_measurements
+    pool_size: 2
+    max_overflow: 0
+    pool_timeout_seconds: 5
 
   database2:
     type: mysql
-    host: 192.168.10.12
+    host: db2.example.invalid
     port: 3306
-    database: prod_database2
-    table: measurements
+    database: sample_process_db_2
+    table: sample_measurements
 
   database3:
     type: mssql
-    host: 192.168.10.13
+    host: db3.example.invalid
     port: 1433
-    database: prod_database3
-    table: main_data
+    database: sample_process_db_3
+    table: sample_main_data
+    order_by_enabled: false
 
   database4:
     type: mysql
-    host: 192.168.10.14
+    host: db4.example.invalid
     port: 3306
-    database: prod_database4
-    table: measurements
+    database: sample_process_db_4
+    table: sample_measurements
 
+export_profiles:
+  default_csv:
+    format: csv
+    delimiter: ","
+  semicolon_csv:
+    format: csv
+    delimiter: ";"
+    include_metadata: true
+  parquet_zstd:
+    format: parquet
+    compression: zstd
