@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from threading import Event
+
 import pandas as pd
 import pytest
 
@@ -257,3 +259,107 @@ def test_iter_records_chunked_streams_chunk_events_before_final_diagnostics():
     assert events[0].frame["source_database"].tolist() == ["alpha"]
     assert events[1].diagnostics is not None
     assert events[1].diagnostics.status is SourceFetchStatus.SUCCESS
+
+
+def test_iter_records_chunked_parallel_yields_ready_chunks_before_slow_sources_finish():
+    profile_a = _profile("alpha")
+    profile_b = _profile("beta")
+    alpha_started = Event()
+    beta_chunk_returned = Event()
+    release_alpha = Event()
+    call_counts: dict[str, int] = {}
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: object | None) -> str:
+        return profile.alias
+
+    def fake_read_sql(sql: str, engine: str, params: dict[str, object] | None = None) -> pd.DataFrame:
+        call_index = call_counts.get(engine, 0)
+        call_counts[engine] = call_index + 1
+        if engine == "alpha":
+            if call_index == 0:
+                alpha_started.set()
+                assert release_alpha.wait(timeout=2)
+                return pd.DataFrame([{"id": 1, "value": "A1"}])
+            return pd.DataFrame(columns=["id", "value"])
+
+        assert alpha_started.wait(timeout=2)
+        if call_index == 0:
+            beta_chunk_returned.set()
+            return pd.DataFrame([{"id": 10, "value": "B1"}])
+        return pd.DataFrame(columns=["id", "value"])
+
+    events = iter_records_chunked(
+        _request(profile_a, profile_b),
+        chunk_size=100,
+        engine_factory=fake_engine_factory,
+        read_sql=fake_read_sql,
+        max_workers=2,
+        max_pending_events=1,
+    )
+
+    first_event = next(events)
+
+    assert beta_chunk_returned.is_set()
+    assert not release_alpha.is_set()
+    assert first_event.source_alias == "beta"
+    assert first_event.frame is not None
+    assert first_event.frame["id"].tolist() == [10]
+
+    release_alpha.set()
+    remaining_events = list(events)
+
+    assert any(event.source_alias == "alpha" and event.frame is not None for event in remaining_events)
+    assert any(event.diagnostics is not None for event in remaining_events)
+
+
+def test_fetch_records_chunked_parallel_preserves_source_order_in_result_wrapper():
+    profile_a = _profile("alpha")
+    profile_b = _profile("beta")
+    alpha_started = Event()
+    beta_chunk_returned = Event()
+    call_counts: dict[str, int] = {}
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: object | None) -> str:
+        return profile.alias
+
+    def fake_read_sql(sql: str, engine: str, params: dict[str, object] | None = None) -> pd.DataFrame:
+        call_index = call_counts.get(engine, 0)
+        call_counts[engine] = call_index + 1
+        if engine == "alpha":
+            if call_index == 0:
+                alpha_started.set()
+                assert beta_chunk_returned.wait(timeout=2)
+                return pd.DataFrame([{"id": 1, "value": "A1"}])
+            return pd.DataFrame(columns=["id", "value"])
+
+        assert alpha_started.wait(timeout=2)
+        if call_index == 0:
+            beta_chunk_returned.set()
+            return pd.DataFrame([{"id": 10, "value": "B1"}])
+        return pd.DataFrame(columns=["id", "value"])
+
+    result = fetch_records_chunked(
+        _request(profile_a, profile_b),
+        chunk_size=100,
+        engine_factory=fake_engine_factory,
+        read_sql=fake_read_sql,
+        max_workers=2,
+        max_pending_events=1,
+    )
+
+    assert result.data["source_alias"].tolist() == ["alpha", "beta"]
+    assert result.data["id"].tolist() == [1, 10]
+    assert [item.source_alias for item in result.source_results] == ["alpha", "beta"]
+
+
+@pytest.mark.parametrize("bad_max_pending_events", (0, -1, 1.5, "2", True))
+def test_iter_records_chunked_rejects_invalid_max_pending_events(bad_max_pending_events):
+    with pytest.raises(OznakValidationError, match="max_pending_events"):
+        list(
+            iter_records_chunked(
+                _request(_profile("alpha"), _profile("beta")),
+                chunk_size=100,
+                max_workers=2,
+                max_pending_events=bad_max_pending_events,
+            )
+        )

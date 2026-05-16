@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from queue import Full, Queue
+from threading import Event as ThreadEvent
 from time import perf_counter
 from typing import Any, Callable
 
@@ -39,14 +41,14 @@ def fetch_records_chunked(
     cancellation_token: CancellationToken | None = None,
     progress_callback: ProgressCallback | None = None,
     max_workers: int | None = None,
+    max_pending_events: int | None = None,
 ) -> FetchResult:
     if type(chunk_size) is not int or chunk_size <= 0:
         raise OznakValidationError("chunk_size must be a positive integer")
 
-    frames: list[pd.DataFrame] = []
+    source_order = {profile.alias: index for index, profile in enumerate(request.profiles)}
+    frames: list[tuple[int, pd.DataFrame]] = []
     source_results: list[SourceFetchDiagnostics] = []
-    warnings: list[str] = []
-    errors: list[str] = []
 
     for event in iter_records_chunked(
         request,
@@ -58,25 +60,38 @@ def fetch_records_chunked(
         cancellation_token=cancellation_token,
         progress_callback=progress_callback,
         max_workers=max_workers,
+        max_pending_events=max_pending_events,
     ):
         if event.frame is not None:
-            frames.append(event.frame)
+            frames.append((source_order.get(event.source_alias, len(source_order)), event.frame))
         if event.diagnostics is None:
             continue
         source_results.append(event.diagnostics)
-        if event.diagnostics.status is SourceFetchStatus.NO_ROWS and event.diagnostics.message:
-            warnings.append(event.diagnostics.message)
-        if event.diagnostics.status in {
+
+    ordered_source_results = tuple(
+        sorted(source_results, key=lambda item: source_order.get(item.source_alias, len(source_order)))
+    )
+    warnings = [
+        diagnostics.message
+        for diagnostics in ordered_source_results
+        if diagnostics.status is SourceFetchStatus.NO_ROWS and diagnostics.message
+    ]
+    errors = [
+        diagnostics.message
+        for diagnostics in ordered_source_results
+        if diagnostics.status in {
             SourceFetchStatus.FAILED,
             SourceFetchStatus.TIMEOUT,
             SourceFetchStatus.CANCELLED,
-        } and event.diagnostics.message:
-            errors.append(event.diagnostics.message)
+        }
+        and diagnostics.message
+    ]
 
-    combined_data = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    ordered_frames = [frame for _, frame in sorted(frames, key=lambda item: item[0])]
+    combined_data = pd.concat(ordered_frames, ignore_index=True) if ordered_frames else pd.DataFrame()
     return FetchResult(
         data=combined_data,
-        source_results=tuple(source_results),
+        source_results=ordered_source_results,
         warnings=tuple(warnings),
         errors=tuple(errors),
     )
@@ -92,6 +107,7 @@ def iter_records_chunked(
     cancellation_token: CancellationToken | None = None,
     progress_callback: ProgressCallback | None = None,
     max_workers: int | None = None,
+    max_pending_events: int | None = None,
 ) -> Iterator[ChunkedFetchEvent]:
     if type(chunk_size) is not int or chunk_size <= 0:
         raise OznakValidationError("chunk_size must be a positive integer")
@@ -99,6 +115,7 @@ def iter_records_chunked(
     resolved_engine_factory: EngineFactory = engine_factory or _default_engine_factory
     resolved_read_sql: ReadSqlCallable = read_sql or pd.read_sql
     worker_count = _normalize_max_workers(max_workers)
+    queue_size = _normalize_max_pending_events(max_pending_events)
 
     if worker_count is None or worker_count == 1 or len(request.profiles) == 1:
         for profile in request.profiles:
@@ -115,34 +132,134 @@ def iter_records_chunked(
             )
         return
 
-    with ThreadPoolExecutor(max_workers=min(worker_count, len(request.profiles))) as executor:
-        futures = {
-            executor.submit(
-                _collect_single_source_chunks,
-                profile=profile,
-                request=request,
-                chunk_size=chunk_size,
-                pagination_column=pagination_column,
-                credential_provider=credential_provider,
-                engine_factory=resolved_engine_factory,
-                read_sql=resolved_read_sql,
-                cancellation_token=cancellation_token,
-                progress_callback=progress_callback,
-            ): index
-            for index, profile in enumerate(request.profiles)
-        }
-        ordered_events: list[list[ChunkedFetchEvent] | None] = [None] * len(request.profiles)
-        for future in as_completed(futures):
-            ordered_events[futures[future]] = future.result()
+    yield from _iter_parallel_source_chunks(
+        request=request,
+        chunk_size=chunk_size,
+        pagination_column=pagination_column,
+        credential_provider=credential_provider,
+        engine_factory=resolved_engine_factory,
+        read_sql=resolved_read_sql,
+        cancellation_token=cancellation_token,
+        progress_callback=progress_callback,
+        max_workers=min(worker_count, len(request.profiles)),
+        queue_size=queue_size,
+    )
 
-    for events in ordered_events:
-        if events is None:
+
+@dataclass(frozen=True)
+class _WorkerDone:
+    source_alias: str
+
+
+@dataclass(frozen=True)
+class _WorkerFailed:
+    source_alias: str
+    error: BaseException
+
+
+_ParallelQueueItem = ChunkedFetchEvent | _WorkerDone | _WorkerFailed
+
+
+def _iter_parallel_source_chunks(
+    *,
+    request: FetchRequest,
+    chunk_size: int,
+    pagination_column: str | None,
+    credential_provider: CredentialProvider | None,
+    engine_factory: EngineFactory,
+    read_sql: ReadSqlCallable,
+    cancellation_token: CancellationToken | None,
+    progress_callback: ProgressCallback | None,
+    max_workers: int,
+    queue_size: int,
+) -> Iterator[ChunkedFetchEvent]:
+    event_queue: Queue[_ParallelQueueItem] = Queue(maxsize=queue_size)
+    stop_event = ThreadEvent()
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    futures: list[Future[None]] = []
+
+    try:
+        for profile in request.profiles:
+            futures.append(
+                executor.submit(
+                    _run_chunk_worker,
+                    event_queue=event_queue,
+                    stop_event=stop_event,
+                    profile=profile,
+                    request=request,
+                    chunk_size=chunk_size,
+                    pagination_column=pagination_column,
+                    credential_provider=credential_provider,
+                    engine_factory=engine_factory,
+                    read_sql=read_sql,
+                    cancellation_token=cancellation_token,
+                    progress_callback=progress_callback,
+                )
+            )
+
+        completed_workers = 0
+        while completed_workers < len(futures):
+            item = event_queue.get()
+            if isinstance(item, _WorkerDone):
+                completed_workers += 1
+                continue
+            if isinstance(item, _WorkerFailed):
+                stop_event.set()
+                raise item.error
+            yield item
+    finally:
+        stop_event.set()
+        for future in futures:
+            future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _run_chunk_worker(
+    *,
+    event_queue: Queue[_ParallelQueueItem],
+    stop_event: ThreadEvent,
+    profile: DatabaseProfile,
+    request: FetchRequest,
+    chunk_size: int,
+    pagination_column: str | None,
+    credential_provider: CredentialProvider | None,
+    engine_factory: EngineFactory,
+    read_sql: ReadSqlCallable,
+    cancellation_token: CancellationToken | None,
+    progress_callback: ProgressCallback | None,
+) -> None:
+    try:
+        for event in _iter_single_source_chunks(
+            profile=profile,
+            request=request,
+            chunk_size=chunk_size,
+            pagination_column=pagination_column,
+            credential_provider=credential_provider,
+            engine_factory=engine_factory,
+            read_sql=read_sql,
+            cancellation_token=cancellation_token,
+            progress_callback=progress_callback,
+        ):
+            if stop_event.is_set():
+                return
+            _put_queue_item(event_queue, event, stop_event)
+    except BaseException as exc:  # pragma: no cover - normal source failures become diagnostics.
+        _put_queue_item(event_queue, _WorkerFailed(source_alias=profile.alias, error=exc), stop_event)
+    finally:
+        _put_queue_item(event_queue, _WorkerDone(source_alias=profile.alias), stop_event)
+
+
+def _put_queue_item(
+    event_queue: Queue[_ParallelQueueItem],
+    item: _ParallelQueueItem,
+    stop_event: ThreadEvent,
+) -> None:
+    while not stop_event.is_set():
+        try:
+            event_queue.put(item, timeout=0.1)
+            return
+        except Full:
             continue
-        yield from events
-
-
-def _collect_single_source_chunks(**kwargs: Any) -> list[ChunkedFetchEvent]:
-    return list(_iter_single_source_chunks(**kwargs))
 
 
 def _iter_single_source_chunks(
@@ -279,6 +396,14 @@ def _normalize_max_workers(max_workers: int | None) -> int | None:
     if type(max_workers) is not int or max_workers <= 0:
         raise OznakValidationError("max_workers must be a positive integer")
     return max_workers
+
+
+def _normalize_max_pending_events(max_pending_events: int | None) -> int:
+    if max_pending_events is None:
+        return 16
+    if type(max_pending_events) is not int or max_pending_events <= 0:
+        raise OznakValidationError("max_pending_events must be a positive integer")
+    return max_pending_events
 
 
 def _raise_if_cancelled(cancellation_token: CancellationToken | None) -> None:

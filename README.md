@@ -102,7 +102,10 @@ oznak load database1,database2 \
   --out output.csv
 ```
 
-Chunked output uses the same package contracts and can stream CSV rows as chunks are fetched:
+Chunked output uses the same package contracts and streams CSV rows as chunks
+are fetched. With `--max-workers`, ready chunks from parallel sources are emitted
+through a bounded queue so slow sources do not block fast sources from writing.
+Use one worker when source-grouped output order is required.
 
 ```bash
 oznak load-chunked database1,database2 \
@@ -171,7 +174,7 @@ request = FetchRequest(
 result = fetch_records(request, credential_provider=EnvironmentCredentialProvider())
 ```
 
-Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound arguments before creating `FetchRequest`. Use `fetch_records(..., max_workers=N)` for bounded parallel source fetches. Use `fetch_records_chunked(...)` for a `FetchResult`, or `iter_records_chunked(...)` when a caller wants to stream chunk frames to an exporter.
+Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound arguments before creating `FetchRequest`. Use `fetch_records(..., max_workers=N)` for bounded parallel source fetches. Use `fetch_records_chunked(...)` for a deterministic `FetchResult`, or `iter_records_chunked(..., max_workers=N)` when a caller wants to stream ready chunk frames to an exporter through a bounded queue.
 
 ## Safety Notes
 

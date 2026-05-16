@@ -12,7 +12,7 @@ Current strengths:
 - Minimal prompt-based TUI exists as `oznak tui`.
 - Query generation is typed, parameterized, database-aware for MySQL/MSSQL, and allowlist-aware.
 - Package fetch paths return structured per-source diagnostics and support opt-in `max_workers`.
-- Chunked reads expose streaming events as well as the compatibility `FetchResult` wrapper.
+- Chunked reads expose bounded queue-backed streaming events as well as the compatibility `FetchResult` wrapper.
 - SQLAlchemy engine creation supports typed pool tuning fields.
 - Package export profiles support CSV, XLSX, and optional Parquet.
 - Legacy `src.cli.main` and `src.api.rest` delegate to package-native surfaces.
@@ -79,16 +79,30 @@ The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-
   - Third-party notice obligations are documented.
   - Version tag policy is documented.
 
+**PR2.3 — Bounded parallel chunk streaming**
+- Objective: Let parallel chunked reads stream ready chunks without buffering all
+  events from each source first.
+- Scope: `src/oznak/chunked.py`, chunked fetch tests, README/roadmap.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - `iter_records_chunked(..., max_workers=N)` yields ready chunks while slower
+    sources are still reading.
+  - Worker output uses a bounded queue to avoid unbounded per-source buffering.
+  - `fetch_records_chunked(...)` keeps deterministic source-grouped result
+    ordering for compatibility callers.
+
 ### Future Backlog
 
 **PR2.4 — Opt-in live DB integration harness**
-- Objective: Validate package behavior against disposable MySQL and MSSQL
-  instances without making live services part of default CI.
+- Objective: Validate package behavior and performance against disposable MySQL
+  and MSSQL instances without making live services part of default CI.
 - Scope: `tests/integration/`, container/test fixtures, release checklist.
 - Acceptance criteria:
   - Integration tests are marked `@pytest.mark.integration`.
   - Default `python -m pytest -q` remains synthetic-only.
   - MySQL and MSSQL query/fetch/export paths are covered when explicitly run.
+  - Chunked sequential versus parallel fetch timing is measured on synthetic
+    fixture data.
 
 ## Feature-by-feature execution policy
 
