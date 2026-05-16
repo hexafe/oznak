@@ -22,6 +22,7 @@ def test_release_process_includes_required_gates() -> None:
     assert "python -m compileall -q -x '^\\./\\.git/' ." in text
     assert "python -m build --sdist --wheel" in text
     assert "oznak version" in text
+    assert "oznak benchmark-chunked" in text
 
 
 def test_release_docs_require_opt_in_live_db_tests() -> None:
@@ -32,6 +33,8 @@ def test_release_docs_require_opt_in_live_db_tests() -> None:
     assert "live database tests are optional and opt-in only" in process_text
     assert "@pytest.mark.integration" in checklist_text
     assert "live db tests are optional and never part of default release gating" in checklist_text
+    assert "no-db benchmark" in process_text
+    assert "no-db benchmark" in checklist_text
 
 
 def test_release_docs_require_no_real_data_or_credentials() -> None:

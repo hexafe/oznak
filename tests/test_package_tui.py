@@ -124,6 +124,7 @@ def test_run_tui_fetches_and_exports_csv(monkeypatch, tmp_path) -> None:
     assert out_path.exists()
     assert pd.read_csv(out_path).to_dict(orient="records") == [{"refname": "A1", "status": "ACTIVE"}]
     assert any("[success] db_a rows=1 elapsed=0.12s" in msg for msg in messages)
+    assert "Fetch summary: sources=1 rows=1 success=1" in messages
 
 
 def test_run_tui_aborts_before_fetch(monkeypatch, tmp_path) -> None:
@@ -258,3 +259,53 @@ def test_run_tui_uses_named_export_profile_when_available(monkeypatch, tmp_path)
         "A1;ACTIVE",
     ]
     assert any("Available export profiles:" in msg for msg in messages)
+
+
+def test_run_tui_prints_failure_summary_before_fetch_error(monkeypatch, tmp_path) -> None:
+    config_path = tmp_path / "databases.yaml"
+    _write_config(config_path)
+
+    answers = iter(
+        [
+            "db_a",
+            "",
+            "",
+            "",
+            "output.csv",
+            "y",
+        ]
+    )
+    messages: list[str] = []
+
+    def fake_fetch_records(
+        request,
+        credential_provider=None,
+        cancellation_token=None,
+        progress_callback=None,
+        **kwargs,
+    ):
+        return FetchResult(
+            source_results=(
+                SourceFetchDiagnostics(
+                    source_alias="db_a",
+                    status=SourceFetchStatus.FAILED,
+                    row_count=0,
+                    error_code="query_error",
+                    message="query failed",
+                ),
+            ),
+            errors=("Source 'db_a' query failed",),
+        )
+
+    monkeypatch.setattr("oznak.tui.fetch_records", fake_fetch_records)
+
+    exit_code = run_tui(
+        config_path=str(config_path),
+        prompt=lambda _question: next(answers),
+        output=messages.append,
+    )
+
+    assert exit_code == 1
+    assert "Fetch summary: sources=1 rows=0 failed=1" in messages
+    assert "  db_a: failed rows=0 code=query_error query failed" in messages
+    assert "Fetch error: Source 'db_a' query failed" in messages

@@ -1,13 +1,20 @@
 """Public package entrypoint for Oznak."""
 
+from oznak.benchmarks import (
+    ChunkedBenchmarkConfig,
+    ChunkedBenchmarkResult,
+    ChunkedBenchmarkRun,
+    format_benchmark_result,
+    run_synthetic_chunked_benchmark,
+)
+from oznak.chunked import ChunkedFetchEvent, iter_records_chunked
+from oznak.config import load_database_profiles, load_export_profiles
 from oznak.credentials import (
     CredentialProvider,
     Credentials,
     EnvironmentCredentialProvider,
     MappingCredentialProvider,
 )
-from oznak.chunked import ChunkedFetchEvent, iter_records_chunked
-from oznak.config import load_database_profiles, load_export_profiles
 from oznak.diagnostics import SourceFetchDiagnostics, SourceFetchStatus
 from oznak.dialects import DatabaseDialect
 from oznak.engines import create_sqlalchemy_engine
@@ -28,6 +35,9 @@ __all__ = [
     "Credentials",
     "CancellationToken",
     "ChunkedFetchEvent",
+    "ChunkedBenchmarkConfig",
+    "ChunkedBenchmarkResult",
+    "ChunkedBenchmarkRun",
     "DatabaseDialect",
     "DatabaseProfile",
     "EnvironmentCredentialProvider",
@@ -46,10 +56,12 @@ __all__ = [
     "create_sqlalchemy_engine",
     "export_chunks_streaming",
     "export_output",
+    "format_benchmark_result",
     "fetch_records",
     "fetch_records_chunked",
     "iter_records_chunked",
     "load_export_profiles",
     "load_database_profiles",
     "parse_legacy_filter",
+    "run_synthetic_chunked_benchmark",
 ]

@@ -13,6 +13,7 @@ Current strengths:
 - Query generation is typed, parameterized, database-aware for MySQL/MSSQL, and allowlist-aware.
 - Package fetch paths return structured per-source diagnostics and support opt-in `max_workers`.
 - Chunked reads expose bounded queue-backed streaming events as well as the compatibility `FetchResult` wrapper.
+- A no-DB synthetic chunk benchmark exercises the same chunk iterator and optional streaming CSV exporter.
 - SQLAlchemy engine creation supports typed pool tuning fields.
 - Package export profiles support CSV, XLSX, and optional Parquet.
 - Legacy `src.cli.main` and `src.api.rest` delegate to package-native surfaces.
@@ -22,7 +23,7 @@ Current strengths:
 Current gaps identified:
 - Live MySQL/MSSQL validation remains opt-in future work.
 - Legacy `src.*` service/query/db/storage modules still exist for compatibility and should be retired gradually.
-- TUI diagnostics can still be polished for easier operator scanning.
+- TUI cancellation and advanced diagnostics drill-down can still be polished.
 
 ## Phase plan
 
@@ -31,7 +32,7 @@ Current gaps identified:
 | Phase 0 | Package foundation and quality guardrails | ✅ Completed | Keep package build/import smoke in CI and release checks. |
 | Phase 1 | Query subsystem hardening | ✅ Completed | Add live dialect validation later as opt-in integration tests. |
 | Phase 2 | Multi-database orchestration resilience | ✅ Completed | Add live DB validation later as opt-in integration tests. |
-| Phase 3 | CLI and TUI productization | 🟢 In Progress | Improve TUI ergonomics and add richer diagnostics views. |
+| Phase 3 | CLI and TUI productization | 🟢 In Progress | Improve cancellation ergonomics and advanced diagnostics drill-down. |
 | Phase 4 | Data export and post-processing workflow | ✅ Completed | Keep optional Parquet smoke coverage active where `pyarrow` is installed. |
 | Phase 5 | Deployment, API, and release readiness | ✅ Completed | Use the release process before tagging; live DB tests remain opt-in future validation. |
 
@@ -49,13 +50,13 @@ The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-
 
 ### Next PR Queue
 
-**PR3.3 — TUI diagnostics polish**
-- Objective: Improve `oznak tui` ergonomics without expanding scope into a full GUI.
-- Scope: `src/oznak/tui.py`, package TUI tests.
+**PR3.4 — TUI cancellation polish**
+- Objective: Make cancellation and interrupted fetch handling easier to operate from `oznak tui`.
+- Scope: `src/oznak/tui.py`, `src/oznak/runtime.py`, package TUI tests.
 - Acceptance criteria:
-  - Source diagnostics are easier to scan.
-  - Validation errors explain which profile/field failed.
   - Cancellation prompt/keyboard handling is predictable.
+  - Cancelled and timed-out sources are clearly separated from validation errors.
+  - Existing compact fetch summaries remain covered by tests.
 
 ### Completed Delivery Slices
 
@@ -91,6 +92,19 @@ The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-
   - `fetch_records_chunked(...)` keeps deterministic source-grouped result
     ordering for compatibility callers.
 
+**PR3.3 — No-DB benchmark and TUI summary**
+- Objective: Give developers a real performance/streaming smoke path when no
+  database access is available, and make TUI fetch outcomes easier to scan.
+- Scope: `src/oznak/benchmarks.py`, `src/oznak/cli.py`, `src/oznak/tui.py`,
+  package CLI/TUI tests, README/release docs.
+- Status: ✅ Completed.
+- Acceptance criteria:
+  - `oznak benchmark-chunked` compares worker counts using synthetic profiles
+    and injected `read_sql`.
+  - Optional `--export-dir` includes streaming CSV export overhead.
+  - `oznak tui` prints source count, row count, and per-status totals before
+    export or error handling.
+
 ### Future Backlog
 
 **PR2.4 — Opt-in live DB integration harness**
@@ -101,8 +115,8 @@ The normalized backlog in `TODO` is the source of truth for cross-phase, non-PR-
   - Integration tests are marked `@pytest.mark.integration`.
   - Default `python -m pytest -q` remains synthetic-only.
   - MySQL and MSSQL query/fetch/export paths are covered when explicitly run.
-  - Chunked sequential versus parallel fetch timing is measured on synthetic
-    fixture data.
+  - Chunked sequential versus parallel fetch timing is measured on disposable
+    database fixture data and compared with the synthetic benchmark baseline.
 
 ## Feature-by-feature execution policy
 

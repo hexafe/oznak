@@ -242,6 +242,53 @@ def test_load_chunked_command_streams_export(monkeypatch, tmp_path) -> None:
     ]
 
 
+def test_benchmark_chunked_command_reports_synthetic_runs() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "benchmark-chunked",
+            "--sources",
+            "2",
+            "--rows-per-source",
+            "5",
+            "--chunk-size",
+            "2",
+            "--workers",
+            "1",
+            "--workers",
+            "2",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "workers\tseconds\trows\tchunks\tqueries\trows_per_second\texport" in result.stdout
+    assert "\t10\t6\t8\t" in result.stdout
+
+
+def test_benchmark_chunked_command_can_export_csv(tmp_path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "benchmark-chunked",
+            "--sources",
+            "1",
+            "--rows-per-source",
+            "3",
+            "--chunk-size",
+            "2",
+            "--workers",
+            "1",
+            "--export-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    out_path = tmp_path / "synthetic-chunked-w1.csv"
+    assert out_path.exists()
+    assert pd.read_csv(out_path)["id"].tolist() == [1, 2, 3]
+
+
 def test_load_command_rejects_unsafe_is_filter(monkeypatch) -> None:
     monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
 

@@ -11,7 +11,7 @@ Oznak is independent at runtime. Consumers should import `oznak.*`, not legacy `
 - Supported dialects: MySQL and MSSQL
 - Default tests use synthetic data only
 - Standalone surfaces: CLI and minimal prompt-based TUI
-- Reuse surface: typed package API with profiles, normalized query requests, filters, bounded concurrency, fetch results, diagnostics, cancellation, chunked fetch, streaming chunk events, and export profiles
+- Reuse surface: typed package API with profiles, normalized query requests, filters, bounded concurrency, fetch results, diagnostics, cancellation, chunked fetch, streaming chunk events, export profiles, and a no-DB synthetic chunk benchmark
 
 ## Install For Development
 
@@ -116,6 +116,24 @@ oznak load-chunked database1,database2 \
   --out output.csv
 ```
 
+Benchmark chunked orchestration without live database access:
+
+```bash
+oznak benchmark-chunked \
+  --sources 4 \
+  --rows-per-source 5000 \
+  --chunk-size 1000 \
+  --workers 1 \
+  --workers 2 \
+  --delay-ms 5
+```
+
+The benchmark uses synthetic profiles and an injected `read_sql` replacement.
+It exercises the same chunked iterator and optional streaming CSV exporter used
+by `load-chunked`, so it can compare sequential and parallel chunk plumbing on
+developer machines and CI without credentials or database services. Add
+`--export-dir <path>` to include streaming CSV writes in the measurement.
+
 ## TUI
 
 ```bash
@@ -124,7 +142,8 @@ oznak tui --config config/databases.yaml
 
 The TUI is a minimal terminal prompt flow for selecting profiles, columns,
 filters, limits, output path, and named export profiles when they exist in the
-config. It uses the same package fetch path as the CLI.
+config. It uses the same package fetch path as the CLI and prints a compact
+per-source fetch summary before export.
 
 ## API
 
@@ -174,7 +193,7 @@ request = FetchRequest(
 result = fetch_records(request, credential_provider=EnvironmentCredentialProvider())
 ```
 
-Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound arguments before creating `FetchRequest`. Use `fetch_records(..., max_workers=N)` for bounded parallel source fetches. Use `fetch_records_chunked(...)` for a deterministic `FetchResult`, or `iter_records_chunked(..., max_workers=N)` when a caller wants to stream ready chunk frames to an exporter through a bounded queue.
+Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound arguments before creating `FetchRequest`. Use `fetch_records(..., max_workers=N)` for bounded parallel source fetches. Use `fetch_records_chunked(...)` for a deterministic `FetchResult`, or `iter_records_chunked(..., max_workers=N)` when a caller wants to stream ready chunk frames to an exporter through a bounded queue. Use `run_synthetic_chunked_benchmark(...)` when a machine has no database access but still needs to verify chunk orchestration and export overhead.
 
 ## Safety Notes
 

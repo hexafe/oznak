@@ -25,6 +25,7 @@ Run a minimal CLI smoke pass:
 - `oznak profiles --config config/databases.yaml`
 - `oznak load --help`
 - `oznak load-chunked --help`
+- `oznak benchmark-chunked --sources 2 --rows-per-source 10 --chunk-size 5 --workers 1 --workers 2`
 - `oznak tui --help`
 
 If validating Parquet export for a release candidate, install the optional extra
@@ -35,6 +36,11 @@ with `python -m pip install -e ".[dev,parquet]"` and rerun the export tests.
 Live database tests are optional and opt-in only. They must be marked with
 `@pytest.mark.integration` and excluded from the default release gate unless the
 release owner explicitly enables them.
+
+Use `oznak benchmark-chunked` as the no-DB benchmark performance smoke path. It verifies
+chunk iteration, parallel worker plumbing, and optional streaming CSV export
+without credentials, but it is not a substitute for opt-in live MySQL/MSSQL
+validation before a deployment that depends on real database behavior.
 
 Example explicit run:
 

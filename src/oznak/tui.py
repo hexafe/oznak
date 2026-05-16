@@ -5,7 +5,7 @@ from typing import Callable
 
 from oznak.config import load_database_profiles, load_export_profiles
 from oznak.credentials import EnvironmentCredentialProvider
-from oznak.diagnostics import SourceFetchDiagnostics
+from oznak.diagnostics import SourceFetchDiagnostics, SourceFetchStatus
 from oznak.errors import OznakConfigurationError, OznakValidationError
 from oznak.exporter import ExportProfile, export_output as _export_output
 from oznak.fetcher import fetch_records
@@ -92,6 +92,8 @@ def run_tui(
     except Exception as exc:
         output(f"Fetch error: {exc}")
         return 1
+
+    _print_fetch_summary(result.source_results, output=output)
 
     if result.has_errors:
         combined_errors = "; ".join(result.errors) if result.errors else "Fetch failed"
@@ -261,3 +263,36 @@ def _print_progress(diagnostics: SourceFetchDiagnostics, *, output: Output) -> N
     if diagnostics.message:
         base = f"{base} {diagnostics.message}"
     output(base)
+
+
+def _print_fetch_summary(
+    diagnostics: tuple[SourceFetchDiagnostics, ...],
+    *,
+    output: Output,
+) -> None:
+    if not diagnostics:
+        output("Fetch summary: no source diagnostics")
+        return
+
+    status_counts = {status: 0 for status in SourceFetchStatus}
+    row_count = 0
+    for item in diagnostics:
+        status_counts[item.status] += 1
+        row_count += item.row_count
+
+    status_parts = [
+        f"{status.value}={count}"
+        for status, count in status_counts.items()
+        if count
+    ]
+    output(f"Fetch summary: sources={len(diagnostics)} rows={row_count} {' '.join(status_parts)}")
+
+    for item in diagnostics:
+        if item.status is SourceFetchStatus.SUCCESS and not item.message and not item.error_code:
+            continue
+        details = f"  {item.source_alias}: {item.status.value} rows={item.row_count}"
+        if item.error_code:
+            details = f"{details} code={item.error_code}"
+        if item.message:
+            details = f"{details} {item.message}"
+        output(details)

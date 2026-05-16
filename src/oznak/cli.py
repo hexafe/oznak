@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from oznak import __version__
+from oznak.benchmarks import ChunkedBenchmarkConfig, format_benchmark_result, run_synthetic_chunked_benchmark
+from oznak.chunked import iter_records_chunked
 from oznak.config import load_database_profiles, load_export_profiles
 from oznak.credentials import EnvironmentCredentialProvider
 from oznak.errors import OznakConfigurationError, OznakValidationError
 from oznak.exporter import ExportProfile, export_chunks_streaming, export_output
-from oznak.chunked import iter_records_chunked
 from oznak.fetcher import fetch_records
 from oznak.request import QueryRequest
 from oznak.tui import run_tui
@@ -236,6 +239,36 @@ def load_chunked(
 
     row_count = sum(item.row_count for item in source_results)
     typer.echo(f"Exported {row_count} rows to {out}")
+
+
+@app.command("benchmark-chunked")
+def benchmark_chunked(
+    source_count: int = typer.Option(4, "--sources", help="Synthetic source count"),
+    rows_per_source: int = typer.Option(5000, "--rows-per-source", help="Synthetic rows generated per source"),
+    chunk_size: int = typer.Option(1000, "--chunk-size", help="Rows per synthetic chunk"),
+    workers: list[int] = typer.Option(
+        [1, 2, 4],
+        "--workers",
+        help="Worker count to benchmark; pass multiple times for multiple runs",
+    ),
+    delay_ms: float = typer.Option(0.0, "--delay-ms", help="Artificial per-query delay in milliseconds"),
+    export_dir: str | None = typer.Option(None, "--export-dir", help="Optional directory for CSV export benchmark"),
+) -> None:
+    try:
+        config = ChunkedBenchmarkConfig(
+            source_count=source_count,
+            rows_per_source=rows_per_source,
+            chunk_size=chunk_size,
+            worker_counts=tuple(workers),
+            delay_ms=delay_ms,
+            export_csv=export_dir is not None,
+            export_directory=Path(export_dir) if export_dir is not None else None,
+        )
+    except ValueError as exc:
+        _fail(f"Validation error: {exc}")
+
+    result = run_synthetic_chunked_benchmark(config)
+    typer.echo(format_benchmark_result(result))
 
 
 @app.command("tui")

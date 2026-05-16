@@ -16,15 +16,19 @@ _Last updated: 2026-05-16_
 - Run `oznak profiles --config config/databases.yaml`
 - Run `oznak load --help`
 - Run `oznak load-chunked --help`
+- Run `oznak benchmark-chunked --sources 2 --rows-per-source 10 --chunk-size 5 --workers 1 --workers 2`
 - Run `oznak tui --help`
 - Run `pytest -q -m cli_integration`
 - Expected result: all commands render help successfully
+- Expected result: no-DB benchmark prints rows, chunks, query counts, and rows per second for each worker count
 - Expected result: CLI integration tests pass in isolation
 
 ## 3. Optional live DB integration verification (opt-in)
 
 - Live DB tests are optional and never part of default release gating.
 - Mark live DB tests with `@pytest.mark.integration`.
+- Use the no-DB benchmark to verify chunk plumbing when database credentials or
+  services are unavailable.
 - Run only when explicitly requested:
   `python -m pytest -q -m integration`
 
