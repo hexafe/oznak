@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 
 from oznak.errors import OznakConfigurationError, OznakValidationError
+from oznak.exporter import ExportProfile, parse_export_profile
 from oznak.profiles import DatabaseProfile
 
 _REQUIRED_PROFILE_KEYS = ("type", "host", "port", "database", "table")
@@ -25,6 +26,27 @@ def load_database_profiles(config_path: str | Path) -> dict[str, DatabaseProfile
             )
         profiles[str(alias)] = _parse_profile(str(alias), raw_profile, path)
 
+    return profiles
+
+
+def load_export_profiles(config_path: str | Path) -> dict[str, ExportProfile]:
+    path = Path(config_path)
+    raw_config = _load_yaml(path)
+    raw_profiles = raw_config.get("export_profiles", {})
+    if raw_profiles is None:
+        return {}
+    if not isinstance(raw_profiles, Mapping):
+        raise OznakConfigurationError(
+            f"Database config '{path}' export_profiles section must be a mapping."
+        )
+
+    profiles: dict[str, ExportProfile] = {}
+    for name, raw_profile in raw_profiles.items():
+        if not isinstance(raw_profile, Mapping):
+            raise OznakConfigurationError(
+                f"Export profile '{name}' in '{path}' must be a mapping."
+            )
+        profiles[str(name)] = parse_export_profile(str(name), raw_profile)
     return profiles
 
 
@@ -86,6 +108,9 @@ def _parse_profile(alias: str, raw_profile: Mapping[str, Any], path: Path) -> Da
             display_name=raw_profile.get("display_name"),
             connect_timeout_seconds=raw_profile.get("connect_timeout_seconds"),
             query_timeout_seconds=raw_profile.get("query_timeout_seconds"),
+            pool_size=raw_profile.get("pool_size"),
+            max_overflow=raw_profile.get("max_overflow"),
+            pool_timeout_seconds=raw_profile.get("pool_timeout_seconds"),
             order_by_enabled=raw_profile.get("order_by_enabled", True),
             metadata=metadata,
         )

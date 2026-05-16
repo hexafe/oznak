@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Hexafe industrial database access layer"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.10"
 authors = [
   { name = "Hexafe" },
@@ -35,6 +36,9 @@ dev = [
   "mypy",
   "pytest",
   "ruff",
+]
+parquet = [
+  "pyarrow",
 ]
 
 [tool.setuptools]

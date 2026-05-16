@@ -151,6 +151,93 @@ def test_load_command_can_disable_server_order_by(monkeypatch, tmp_path) -> None
     assert result.exit_code == 0
 
 
+def test_load_command_passes_max_workers_and_export_profile(monkeypatch, tmp_path) -> None:
+    out_path = tmp_path / "result.csv"
+    config_path = tmp_path / "databases.yaml"
+    config_path.write_text("databases: {}\nexport_profiles:\n  semicolon:\n    format: csv\n    delimiter: ';'\n", encoding="utf-8")
+    monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
+    captured: dict[str, object] = {}
+
+    def fake_fetch_records(request, credential_provider=None, max_workers=None):
+        captured["max_workers"] = max_workers
+        return FetchResult(
+            data=pd.DataFrame([{"refname": "A1", "status": "ACTIVE"}]),
+            source_results=(
+                SourceFetchDiagnostics(
+                    source_alias="db_a",
+                    status=SourceFetchStatus.SUCCESS,
+                    row_count=1,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("oznak.cli.fetch_records", fake_fetch_records)
+
+    result = runner.invoke(
+        app,
+        [
+            "load",
+            "db_a",
+            "--config",
+            str(config_path),
+            "--max-workers",
+            "2",
+            "--export-profile",
+            "semicolon",
+            "--out",
+            str(out_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["max_workers"] == 2
+    assert out_path.read_text(encoding="utf-8").splitlines()[0] == "refname;status"
+
+
+def test_load_chunked_command_streams_export(monkeypatch, tmp_path) -> None:
+    out_path = tmp_path / "chunked.csv"
+    monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
+
+    from oznak.chunked import ChunkedFetchEvent
+
+    def fake_iter_records_chunked(request, **kwargs):
+        assert kwargs["chunk_size"] == 50
+        assert kwargs["max_workers"] == 2
+        yield ChunkedFetchEvent(
+            source_alias="db_a",
+            frame=pd.DataFrame([{"refname": "A1", "source_database": "db_a"}]),
+        )
+        yield ChunkedFetchEvent(
+            source_alias="db_a",
+            diagnostics=SourceFetchDiagnostics(
+                source_alias="db_a",
+                status=SourceFetchStatus.SUCCESS,
+                row_count=1,
+            ),
+        )
+
+    monkeypatch.setattr("oznak.cli.iter_records_chunked", fake_iter_records_chunked)
+
+    result = runner.invoke(
+        app,
+        [
+            "load-chunked",
+            "db_a",
+            "--chunk-size",
+            "50",
+            "--max-workers",
+            "2",
+            "--out",
+            str(out_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert pd.read_csv(out_path).to_dict(orient="records") == [
+        {"refname": "A1", "source_database": "db_a"}
+    ]
+
+
 def test_load_command_rejects_unsafe_is_filter(monkeypatch) -> None:
     monkeypatch.setattr("oznak.cli.load_database_profiles", lambda _config: {"db_a": _profile("db_a")})
 

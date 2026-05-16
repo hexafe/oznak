@@ -9,9 +9,7 @@ from oznak.config import load_database_profiles
 from oznak.credentials import EnvironmentCredentialProvider
 from oznak.errors import OznakConfigurationError, OznakValidationError
 from oznak.fetcher import fetch_records
-from oznak.filters import parse_legacy_filter
-from oznak.profiles import DatabaseProfile, validate_identifier
-from oznak.result import FetchRequest
+from oznak.request import QueryRequest
 
 app = FastAPI(title="Oznak API")
 
@@ -53,12 +51,10 @@ def fetch(
     last_n: Optional[int] = None,
     reference: Optional[str] = None,
     order_by: bool = True,
+    max_workers: Optional[int] = Query(default=None, gt=0),
 ) -> dict[str, object]:
     try:
         loaded_profiles = load_database_profiles(config)
-        aliases = _parse_aliases(databases)
-        selected_profiles = _resolve_profiles(loaded_profiles, aliases)
-        selected_columns = _parse_columns(select_columns if isinstance(select_columns, str) else None)
         normalized_filters = filters if isinstance(filters, list) else None
         normalized_time_from = time_from if isinstance(time_from, str) else None
         normalized_time_to = time_to if isinstance(time_to, str) else None
@@ -69,26 +65,25 @@ def fetch(
             time_to=normalized_time_to,
             reference=normalized_reference,
         )
-        parsed_filters = tuple(parse_legacy_filter(item) for item in combined_filters)
 
         effective_last = last if isinstance(last, int) else last_n if isinstance(last_n, int) else None
-        if effective_last is not None:
-            if not isinstance(effective_last, int) or effective_last <= 0:
-                raise OznakValidationError("'last' must be a positive integer")
-            validate_identifier(date_col, field_name="date column")
-
-        request = FetchRequest(
-            profiles=selected_profiles,
-            filters=parsed_filters,
-            columns=selected_columns,
-            limit=effective_last,
-            date_column=date_col if effective_last is not None else None,
+        query_request = QueryRequest.from_inputs(
+            databases=databases,
+            filters=combined_filters,
+            select_columns=select_columns if isinstance(select_columns, str) else None,
+            last=effective_last,
+            date_col=date_col,
             order_by_enabled=order_by,
+            max_workers=max_workers if isinstance(max_workers, int) else None,
         )
+        request = query_request.to_fetch_request(loaded_profiles)
     except (OznakConfigurationError, OznakValidationError, ValueError) as exc:
         raise validation_error(str(exc), {"field": "request"}) from exc
 
-    result = fetch_records(request, credential_provider=EnvironmentCredentialProvider())
+    fetch_kwargs = {"credential_provider": EnvironmentCredentialProvider()}
+    if query_request.max_workers is not None:
+        fetch_kwargs["max_workers"] = query_request.max_workers
+    result = fetch_records(request, **fetch_kwargs)
     if result.has_errors:
         raise execution_error(
             "database fetch failed",
@@ -118,29 +113,6 @@ def fetch(
         ],
         "data": result.data.to_dict(orient="records"),
     }
-
-
-def _parse_aliases(raw_aliases: str) -> tuple[str, ...]:
-    aliases = tuple(alias.strip() for alias in raw_aliases.split(",") if alias.strip())
-    if not aliases:
-        raise OznakValidationError("databases is required")
-    return tuple(validate_identifier(alias, field_name="profile alias") for alias in aliases)
-
-
-def _resolve_profiles(loaded_profiles: dict[str, DatabaseProfile], aliases: tuple[str, ...]) -> tuple[DatabaseProfile, ...]:
-    missing = [alias for alias in aliases if alias not in loaded_profiles]
-    if missing:
-        raise OznakConfigurationError(f"Unknown database alias(es) in config: {', '.join(missing)}")
-    return tuple(loaded_profiles[alias] for alias in aliases)
-
-
-def _parse_columns(raw_columns: str | None) -> tuple[str, ...] | None:
-    if raw_columns is None:
-        return None
-    columns = tuple(column.strip() for column in raw_columns.split(",") if column.strip())
-    if not columns:
-        return None
-    return tuple(validate_identifier(column, field_name="selected column") for column in columns)
 
 
 def _combine_filters(

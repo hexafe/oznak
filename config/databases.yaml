@@ -5,6 +5,9 @@ databases:
     port: 3306
     database: sample_process_db_1
     table: sample_measurements
+    pool_size: 2
+    max_overflow: 0
+    pool_timeout_seconds: 5
 
   database2:
     type: mysql
@@ -27,3 +30,15 @@ databases:
     port: 3306
     database: sample_process_db_4
     table: sample_measurements
+
+export_profiles:
+  default_csv:
+    format: csv
+    delimiter: ","
+  semicolon_csv:
+    format: csv
+    delimiter: ";"
+    include_metadata: true
+  parquet_zstd:
+    format: parquet
+    compression: zstd

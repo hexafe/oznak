@@ -1,9 +1,13 @@
+import tomllib
 from pathlib import Path
 
+import oznak
 
 ROOT = Path(__file__).resolve().parents[1]
+PYPROJECT = ROOT / "pyproject.toml"
 RELEASE_PROCESS = ROOT / "docs" / "RELEASE_PROCESS.md"
 TEST_CHECKLIST = ROOT / "docs" / "TEST_VERIFICATION_CHECKLIST.md"
+THIRD_PARTY_NOTICES = ROOT / "THIRD_PARTY_NOTICES.md"
 
 
 def _read(path: Path) -> str:
@@ -41,3 +45,46 @@ def test_release_docs_require_no_real_data_or_credentials() -> None:
         "no real credentials, secrets, or connection strings",
     ):
         assert required in f"{process_text}\n{checklist_text}"
+
+
+def test_release_docs_cover_version_tags_and_driver_prerequisites() -> None:
+    process_text = _read(RELEASE_PROCESS)
+    checklist_text = _read(TEST_CHECKLIST)
+
+    combined = f"{process_text}\n{checklist_text}"
+    assert "vx.y.z" in combined
+    assert "oznak.__version__" in combined
+    assert "microsoft odbc driver 17 for sql server" in combined
+    assert "compatible `pyodbc` driver" in combined
+
+
+def test_package_version_matches_pyproject() -> None:
+    raw_pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    assert raw_pyproject["project"]["version"] == oznak.__version__
+
+
+def test_third_party_notices_cover_runtime_dependencies() -> None:
+    raw_pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    notices = _read(THIRD_PARTY_NOTICES)
+
+    for dependency in raw_pyproject["project"]["dependencies"]:
+        package_name = (
+            dependency.split("[", 1)[0]
+            .split(";", 1)[0]
+            .split("=", 1)[0]
+            .split("<", 1)[0]
+            .split(">", 1)[0]
+            .strip()
+        )
+        assert package_name.lower() in notices
+
+    assert "mysql-connector-python" in notices
+    assert "gplv2 with foss license exception" in notices
+    assert "pyarrow" in notices
+
+
+def test_third_party_notices_are_included_as_license_files() -> None:
+    raw_pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+
+    assert "THIRD_PARTY_NOTICES.md" in raw_pyproject["project"]["license-files"]

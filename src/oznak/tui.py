@@ -3,14 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from oznak.config import load_database_profiles
+from oznak.config import load_database_profiles, load_export_profiles
 from oznak.credentials import EnvironmentCredentialProvider
 from oznak.diagnostics import SourceFetchDiagnostics
 from oznak.errors import OznakConfigurationError, OznakValidationError
+from oznak.exporter import ExportProfile, export_output as _export_output
 from oznak.fetcher import fetch_records
 from oznak.filters import QueryFilter, parse_legacy_filter
 from oznak.profiles import DatabaseProfile, validate_identifier
-from oznak.result import FetchRequest
+from oznak.request import QueryRequest
 from oznak.runtime import CancellationToken
 
 Prompt = Callable[[str], str]
@@ -25,6 +26,7 @@ def run_tui(
 ) -> int:
     try:
         loaded_profiles = load_database_profiles(config_path)
+        export_profiles = load_export_profiles(config_path)
         if not loaded_profiles:
             raise OznakConfigurationError("No database profiles found in config")
 
@@ -43,20 +45,26 @@ def run_tui(
                 prompt=prompt,
             )
         out_path = _prompt_output_path(prompt=prompt)
+        export_profile = _prompt_export_profile(
+            export_profiles=export_profiles,
+            prompt=prompt,
+            output=output,
+        )
 
         should_run = _prompt_yes_no("Run fetch now? [y/N]: ", default=False, prompt=prompt)
         if not should_run:
             output("Aborted by user")
             return 1
 
-        request = FetchRequest(
-            profiles=selected_profiles,
+        query_request = QueryRequest(
+            profile_aliases=tuple(profile.alias for profile in selected_profiles),
             filters=parsed_filters,
             columns=selected_columns,
             limit=last,
             date_column=date_column if last is not None else None,
             order_by_enabled=order_by_enabled,
         )
+        request = query_request.to_fetch_request(loaded_profiles)
     except (OznakConfigurationError, OznakValidationError, ValueError) as exc:
         output(f"Validation error: {exc}")
         return 1
@@ -95,7 +103,7 @@ def run_tui(
         return 0
 
     try:
-        export_output(result.data, out_path)
+        export_output(result.data, out_path, profile=export_profile, diagnostics=result.source_results)
     except Exception as exc:
         output(f"Export error: {exc}")
         return 1
@@ -104,16 +112,14 @@ def run_tui(
     return 0
 
 
-def export_output(data, out_path: str) -> None:
-    destination = Path(out_path)
-    extension = destination.suffix.lower()
-    if extension == ".csv":
-        data.to_csv(destination, index=False)
-        return
-    if extension in {".xlsx", ".xls"}:
-        data.to_excel(destination, index=False)
-        return
-    raise OznakValidationError("Unsupported output format. Use .csv, .xlsx, or .xls")
+def export_output(
+    data,
+    out_path: str,
+    *,
+    profile: ExportProfile | None = None,
+    diagnostics: tuple[SourceFetchDiagnostics, ...] = (),
+) -> None:
+    _export_output(data, out_path, profile=profile, diagnostics=diagnostics)
 
 
 def _prompt_alias_selection(*, aliases: tuple[str, ...], prompt: Prompt, output: Output) -> tuple[str, ...]:
@@ -207,11 +213,35 @@ def _prompt_limit(*, prompt: Prompt) -> tuple[int | None, str | None]:
 
 
 def _prompt_output_path(*, prompt: Prompt) -> str:
-    out_path = prompt("Output file path [.csv/.xlsx/.xls] [output.csv]: ").strip() or "output.csv"
+    out_path = prompt("Output file path [.csv/.xlsx/.xls/.parquet] [output.csv]: ").strip() or "output.csv"
     extension = Path(out_path).suffix.lower()
-    if extension not in {".csv", ".xlsx", ".xls"}:
-        raise OznakValidationError("Unsupported output format. Use .csv, .xlsx, or .xls")
+    if extension not in {".csv", ".xlsx", ".xls", ".parquet"}:
+        raise OznakValidationError("Unsupported output format. Use .csv, .xlsx/.xls, or .parquet")
     return out_path
+
+
+def _prompt_export_profile(
+    *,
+    export_profiles: dict[str, ExportProfile],
+    prompt: Prompt,
+    output: Output,
+) -> ExportProfile | None:
+    if not export_profiles:
+        return None
+
+    output("Available export profiles:")
+    for name in sorted(export_profiles):
+        profile = export_profiles[name]
+        format_hint = profile.format or "suffix"
+        metadata_hint = ", metadata" if profile.include_metadata else ""
+        output(f"  {name}: {format_hint}{metadata_hint}")
+
+    raw = prompt("Export profile (leave blank for output suffix defaults): ").strip()
+    if not raw:
+        return None
+    if raw not in export_profiles:
+        raise OznakConfigurationError(f"Unknown export profile in config: {raw}")
+    return export_profiles[raw]
 
 
 def _prompt_yes_no(question: str, *, default: bool, prompt: Prompt) -> bool:

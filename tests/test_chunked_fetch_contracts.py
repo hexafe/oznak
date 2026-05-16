@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from oznak.chunked import fetch_records_chunked
+from oznak.chunked import iter_records_chunked
 from oznak.diagnostics import SourceFetchStatus
 from oznak.errors import OznakValidationError
 from oznak.profiles import DatabaseProfile
@@ -228,3 +229,31 @@ def test_fetch_records_chunked_reports_timeout(monkeypatch):
 def test_fetch_records_chunked_rejects_invalid_chunk_size(bad_chunk_size):
     with pytest.raises(OznakValidationError, match="chunk_size must be a positive integer"):
         fetch_records_chunked(_request(_profile("alpha")), chunk_size=bad_chunk_size)
+
+
+def test_iter_records_chunked_streams_chunk_events_before_final_diagnostics():
+    profile = _profile("alpha")
+    calls = {"count": 0}
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: object | None) -> str:
+        return "alpha"
+
+    def fake_read_sql(sql: str, engine: str, params: dict[str, object] | None = None) -> pd.DataFrame:
+        if calls["count"] == 0:
+            calls["count"] += 1
+            return pd.DataFrame([{"id": 1, "value": "A1"}])
+        return pd.DataFrame(columns=["id", "value"])
+
+    events = list(
+        iter_records_chunked(
+            _request(profile),
+            chunk_size=100,
+            engine_factory=fake_engine_factory,
+            read_sql=fake_read_sql,
+        )
+    )
+
+    assert events[0].frame is not None
+    assert events[0].frame["source_database"].tolist() == ["alpha"]
+    assert events[1].diagnostics is not None
+    assert events[1].diagnostics.status is SourceFetchStatus.SUCCESS

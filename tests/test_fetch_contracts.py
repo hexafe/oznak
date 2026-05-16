@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from threading import Event, Lock
+
 import pandas as pd
+import pytest
 
 from oznak.credentials import Credentials, MappingCredentialProvider
-from oznak.fetcher import fetch_records
 from oznak.diagnostics import SourceFetchStatus
+from oznak.errors import OznakValidationError
+from oznak.fetcher import fetch_records
 from oznak.profiles import DatabaseProfile
 from oznak.result import FetchRequest
 from oznak.runtime import CancellationToken
@@ -279,3 +283,47 @@ def test_fetch_records_reports_timeout_after_source_exceeds_timeout(monkeypatch)
     assert result.source_results[0].status is SourceFetchStatus.TIMEOUT
     assert result.source_results[0].error_code == "execute_timeout"
     assert result.data.empty
+
+
+def test_fetch_records_can_run_sources_with_bounded_parallelism():
+    profile_a = _profile("alpha")
+    profile_b = _profile("beta")
+    active = 0
+    peak_active = 0
+    lock = Lock()
+    first_reader_started = Event()
+    release_readers = Event()
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> str:
+        return profile.alias
+
+    def fake_read_sql(sql: str, engine: str, params: dict[str, object] | None = None) -> pd.DataFrame:
+        nonlocal active, peak_active
+        with lock:
+            active += 1
+            peak_active = max(peak_active, active)
+        if engine == "alpha":
+            first_reader_started.set()
+            assert release_readers.wait(timeout=2)
+        else:
+            assert first_reader_started.wait(timeout=2)
+            release_readers.set()
+        with lock:
+            active -= 1
+        return pd.DataFrame([{"id": 1, "value": engine}])
+
+    result = fetch_records(
+        _request(profile_a, profile_b),
+        engine_factory=fake_engine_factory,
+        read_sql=fake_read_sql,
+        max_workers=2,
+    )
+
+    assert peak_active == 2
+    assert result.data["source_alias"].tolist() == ["alpha", "beta"]
+
+
+@pytest.mark.parametrize("bad_max_workers", (0, -1, 1.5, "2", True))
+def test_fetch_records_rejects_invalid_max_workers(bad_max_workers):
+    with pytest.raises(OznakValidationError, match="max_workers"):
+        fetch_records(_request(_profile("alpha")), max_workers=bad_max_workers)

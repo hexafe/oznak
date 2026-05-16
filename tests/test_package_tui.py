@@ -30,6 +30,28 @@ databases:
     )
 
 
+def _write_config_with_export_profile(path: Path) -> None:
+    path.write_text(
+        """
+databases:
+  db_a:
+    type: mysql
+    host: alpha.internal.example
+    port: 3306
+    database: assembly
+    table: records
+    allowed_columns:
+      - refname
+      - status
+export_profiles:
+  semicolon:
+    format: csv
+    delimiter: ";"
+""".strip(),
+        encoding="utf-8",
+    )
+
+
 def test_run_tui_fetches_and_exports_csv(monkeypatch, tmp_path) -> None:
     config_path = tmp_path / "databases.yaml"
     out_path = tmp_path / "out.csv"
@@ -184,3 +206,55 @@ def test_run_tui_can_disable_server_order_by(monkeypatch, tmp_path) -> None:
     )
 
     assert exit_code == 0
+
+
+def test_run_tui_uses_named_export_profile_when_available(monkeypatch, tmp_path) -> None:
+    config_path = tmp_path / "databases.yaml"
+    out_path = tmp_path / "out.csv"
+    _write_config_with_export_profile(config_path)
+
+    answers = iter(
+        [
+            "db_a",
+            "",
+            "",
+            "",
+            str(out_path),
+            "semicolon",
+            "y",
+        ]
+    )
+    messages: list[str] = []
+
+    def fake_fetch_records(
+        request,
+        credential_provider=None,
+        cancellation_token=None,
+        progress_callback=None,
+        **kwargs,
+    ):
+        return FetchResult(
+            data=pd.DataFrame([{"refname": "A1", "status": "ACTIVE"}]),
+            source_results=(
+                SourceFetchDiagnostics(
+                    source_alias="db_a",
+                    status=SourceFetchStatus.SUCCESS,
+                    row_count=1,
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("oznak.tui.fetch_records", fake_fetch_records)
+
+    exit_code = run_tui(
+        config_path=str(config_path),
+        prompt=lambda _question: next(answers),
+        output=messages.append,
+    )
+
+    assert exit_code == 0
+    assert out_path.read_text(encoding="utf-8").splitlines() == [
+        "refname;status",
+        "A1;ACTIVE",
+    ]
+    assert any("Available export profiles:" in msg for msg in messages)

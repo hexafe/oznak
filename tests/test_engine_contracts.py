@@ -118,6 +118,38 @@ def test_create_sqlalchemy_engine_omits_optional_timeout_parameters(monkeypatch)
     ]
 
 
+def test_create_sqlalchemy_engine_applies_pool_tuning(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    def fake_create_engine(url: str, **kwargs):
+        calls.append({"url": url, "kwargs": kwargs})
+        return "mysql-engine"
+
+    monkeypatch.setattr("oznak.engines.create_engine", fake_create_engine)
+
+    profile = DatabaseProfile(
+        alias="assembly_mysql",
+        dialect="mysql",
+        host="mysql.example.invalid",
+        port=3306,
+        database="process_db",
+        table="records",
+        pool_size=2,
+        max_overflow=0,
+        pool_timeout_seconds=3.1,
+    )
+
+    create_sqlalchemy_engine(profile, Credentials(username="svc", password="secret"))
+
+    assert calls[0]["kwargs"] == {
+        "echo": False,
+        "pool_pre_ping": True,
+        "pool_size": 2,
+        "max_overflow": 0,
+        "pool_timeout": 4,
+    }
+
+
 def test_create_sqlalchemy_engine_requires_credentials():
     with pytest.raises(OznakConfigurationError, match="Missing credentials"):
         create_sqlalchemy_engine(_mysql_profile(), None)

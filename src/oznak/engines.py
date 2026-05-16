@@ -73,6 +73,12 @@ def _build_engine_kwargs(profile: DatabaseProfile) -> dict[str, object]:
 
     if connect_args:
         kwargs["connect_args"] = connect_args
+    if profile.pool_size is not None:
+        kwargs["pool_size"] = profile.pool_size
+    if profile.max_overflow is not None:
+        kwargs["max_overflow"] = profile.max_overflow
+    if profile.pool_timeout_seconds is not None:
+        kwargs["pool_timeout"] = _seconds_to_int(profile.pool_timeout_seconds)
 
     return kwargs
 
