@@ -44,6 +44,7 @@ def run_tui(
                 default=True,
                 prompt=prompt,
             )
+        timeout_seconds = _prompt_timeout_seconds(prompt=prompt)
         out_path = _prompt_output_path(prompt=prompt)
         export_profile = _prompt_export_profile(
             export_profiles=export_profiles,
@@ -63,6 +64,7 @@ def run_tui(
             limit=last,
             date_column=date_column if last is not None else None,
             order_by_enabled=order_by_enabled,
+            timeout_seconds=timeout_seconds,
         )
         request = query_request.to_fetch_request(loaded_profiles)
     except (OznakConfigurationError, OznakValidationError, ValueError) as exc:
@@ -87,7 +89,7 @@ def run_tui(
         )
     except KeyboardInterrupt:
         cancellation_token.cancel()
-        output("Cancelled")
+        output("Cancelled by user before fetch completed")
         return 1
     except Exception as exc:
         output(f"Fetch error: {exc}")
@@ -97,7 +99,7 @@ def run_tui(
 
     if result.has_errors:
         combined_errors = "; ".join(result.errors) if result.errors else "Fetch failed"
-        output(f"Fetch error: {combined_errors}")
+        _print_terminal_fetch_error(result.source_results, combined_errors, output=output)
         return 1
 
     if getattr(result.data, "empty", True):
@@ -222,6 +224,19 @@ def _prompt_output_path(*, prompt: Prompt) -> str:
     return out_path
 
 
+def _prompt_timeout_seconds(*, prompt: Prompt) -> float | None:
+    raw_timeout = prompt("Fetch timeout seconds (leave blank for no request timeout): ").strip()
+    if not raw_timeout:
+        return None
+    try:
+        timeout_seconds = float(raw_timeout)
+    except ValueError as exc:
+        raise OznakValidationError("fetch timeout must be a positive number") from exc
+    if timeout_seconds <= 0:
+        raise OznakValidationError("fetch timeout must be a positive number")
+    return timeout_seconds
+
+
 def _prompt_export_profile(
     *,
     export_profiles: dict[str, ExportProfile],
@@ -296,3 +311,22 @@ def _print_fetch_summary(
         if item.message:
             details = f"{details} {item.message}"
         output(details)
+
+
+def _print_terminal_fetch_error(
+    diagnostics: tuple[SourceFetchDiagnostics, ...],
+    combined_errors: str,
+    *,
+    output: Output,
+) -> None:
+    statuses = {item.status for item in diagnostics}
+    if statuses and statuses <= {SourceFetchStatus.CANCELLED}:
+        output(f"Fetch cancelled: {combined_errors}")
+        return
+    if SourceFetchStatus.CANCELLED in statuses:
+        output(f"Fetch cancelled with partial errors: {combined_errors}")
+        return
+    if SourceFetchStatus.TIMEOUT in statuses:
+        output(f"Fetch timeout: {combined_errors}")
+        return
+    output(f"Fetch error: {combined_errors}")

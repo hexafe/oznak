@@ -7,7 +7,7 @@ Oznak is independent at runtime. Consumers should import `oznak.*`, not legacy `
 ## Current Status
 
 - Package namespace: `oznak`
-- Version: `0.1.0`
+- Version: `0.2.0rc1`
 - Supported dialects: MySQL and MSSQL
 - Default tests use synthetic data only
 - Standalone surfaces: CLI and minimal prompt-based TUI
@@ -141,9 +141,9 @@ oznak tui --config config/databases.yaml
 ```
 
 The TUI is a minimal terminal prompt flow for selecting profiles, columns,
-filters, limits, output path, and named export profiles when they exist in the
-config. It uses the same package fetch path as the CLI and prints a compact
-per-source fetch summary before export.
+filters, limits, request timeout, output path, and named export profiles when
+they exist in the config. It uses the same package fetch path as the CLI and
+prints a compact per-source fetch summary before export.
 
 ## API
 
@@ -202,6 +202,8 @@ Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound argum
 - Columns are validated against configured profile allowlists when allowlists are present.
 - Profile timeout fields are typed and converted to safe dialect-specific engine options.
 - Profile pool fields are typed before they reach SQLAlchemy.
+- See `docs/SECURITY_PERFORMANCE.md` for SQL safety boundaries and
+  performance/memory controls.
 
 ## Release Notes For Maintainers
 
@@ -214,3 +216,7 @@ Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound argum
 - Diagnostics redact credentials and connection strings.
 - Default tests do not require live databases.
 - Live database tests should be opt-in integration tests only.
+- Use `docs/LIVE_DB_INTEGRATION.md` for disposable MySQL/MSSQL integration
+  checks when Docker and database drivers are available.
+- Legacy `src.*` modules are deprecated compatibility shims; new consumers
+  should import from `oznak.*`.

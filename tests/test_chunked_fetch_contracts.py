@@ -80,6 +80,35 @@ def test_fetch_records_chunked_multi_chunk_success_in_deterministic_order():
     assert [item.metadata["chunk_count"] for item in result.source_results] == [2, 1]
 
 
+def test_fetch_records_chunked_default_reader_uses_sqlalchemy_text(monkeypatch):
+    profile = _profile("alpha")
+    calls: list[tuple[object, object, dict[str, object] | None]] = []
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: object | None) -> str:
+        return "engine"
+
+    def fake_pandas_read_sql(sql, engine, params=None):
+        calls.append((sql, engine, params))
+        if len(calls) == 1:
+            return pd.DataFrame([{"id": 1, "value": "A1"}])
+        return pd.DataFrame(columns=["id", "value"])
+
+    monkeypatch.setattr("oznak.chunked.pd.read_sql", fake_pandas_read_sql)
+
+    result = fetch_records_chunked(
+        _request(profile),
+        chunk_size=1,
+        engine_factory=fake_engine_factory,
+    )
+
+    assert result.errors == ()
+    assert result.row_count == 1
+    assert str(calls[0][0]) == "SELECT `id`, `value` FROM `records` ORDER BY `id` ASC LIMIT 1"
+    assert calls[0][1] == "engine"
+    assert calls[0][2] is None
+    assert calls[1][2] == {"pagination_param": 1}
+
+
 def test_fetch_records_chunked_marks_no_rows():
     profile = _profile("alpha")
 

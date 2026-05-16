@@ -1,6 +1,9 @@
 import re
 
+from src._legacy import warn_legacy_module
 from src.query.builder import parse_filter_string
+
+warn_legacy_module("src.services.filter_parser", "oznak.request and oznak.filters")
 
 
 IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")

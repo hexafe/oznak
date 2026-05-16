@@ -4,9 +4,12 @@ from urllib.parse import quote_plus
 from sqlalchemy import create_engine
 
 from config.settings import CONFIG_PATH
+from src._legacy import warn_legacy_module
 from src.db.connectors.mssql_connector import connect_mssql
 from src.db.connectors.mysql_connector import connect_mysql
 from src.utils.env import get_credentials
+
+warn_legacy_module("src.db.manager", "oznak.config and oznak.engines")
 
 
 class DBManager:

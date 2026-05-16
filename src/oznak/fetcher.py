@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Any, Callable
 
 import pandas as pd
+from sqlalchemy import text
 
 from oznak.credentials import CredentialProvider, Credentials
 from oznak.diagnostics import SourceFetchDiagnostics, SourceFetchStatus
@@ -40,7 +41,7 @@ def fetch_records(
     max_workers: int | None = None,
 ) -> FetchResult:
     resolved_engine_factory = engine_factory or _default_engine_factory
-    resolved_read_sql = read_sql or pd.read_sql
+    resolved_read_sql = read_sql or _default_read_sql
     worker_count = _normalize_max_workers(max_workers)
 
     outcomes = _fetch_source_outcomes(
@@ -247,6 +248,13 @@ def _resolve_order_by_enabled(request: FetchRequest, profile: DatabaseProfile) -
 
 def _default_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> Any:
     return create_sqlalchemy_engine(profile, credentials)
+
+
+def _default_read_sql(sql: str, engine: Any, params: dict[str, object] | None = None) -> pd.DataFrame:
+    statement = text(sql)
+    if params:
+        return pd.read_sql(statement, engine, params=params)
+    return pd.read_sql(statement, engine)
 
 
 def _raise_if_cancelled(cancellation_token: CancellationToken | None) -> None:

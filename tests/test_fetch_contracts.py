@@ -8,6 +8,7 @@ import pytest
 from oznak.credentials import Credentials, MappingCredentialProvider
 from oznak.diagnostics import SourceFetchStatus
 from oznak.errors import OznakValidationError
+from oznak.filters import QueryFilter
 from oznak.fetcher import fetch_records
 from oznak.profiles import DatabaseProfile
 from oznak.result import FetchRequest
@@ -97,6 +98,35 @@ def test_fetch_records_can_disable_order_by_per_request():
     assert result.errors == ()
     assert result.row_count == 1
     assert read_calls == ["SELECT `id`, `value` FROM `records` LIMIT 10"]
+
+
+def test_fetch_records_default_reader_uses_sqlalchemy_text(monkeypatch):
+    profile = _profile("alpha")
+    captured: dict[str, object] = {}
+
+    def fake_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> str:
+        return "engine"
+
+    def fake_pandas_read_sql(sql, engine, params=None):
+        captured["sql"] = sql
+        captured["engine"] = engine
+        captured["params"] = params
+        return pd.DataFrame([{"id": 1, "value": "A1"}])
+
+    monkeypatch.setattr("oznak.fetcher.pd.read_sql", fake_pandas_read_sql)
+
+    result = fetch_records(
+        _request(profile, filters=(QueryFilter("value", "=", "A1"),)),
+        engine_factory=fake_engine_factory,
+    )
+
+    assert result.errors == ()
+    assert str(captured["sql"]) == (
+        "SELECT `id`, `value` FROM `records` WHERE `value` = :param_0 "
+        "ORDER BY `updated_at` DESC LIMIT 10"
+    )
+    assert captured["engine"] == "engine"
+    assert captured["params"] == {"param_0": "A1"}
 
 
 def test_fetch_records_marks_no_rows_as_no_rows_with_warning():

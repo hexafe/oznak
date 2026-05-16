@@ -45,6 +45,12 @@ validation before a deployment that depends on real database behavior.
 Example explicit run:
 
 - `python -m pytest -q -m integration`
+- `docker compose -f docker-compose.integration.yml up -d`
+- `OZNAK_RUN_LIVE_DB_TESTS=1 python -m pytest -q -m integration`
+- `docker compose -f docker-compose.integration.yml down -v`
+
+See `docs/LIVE_DB_INTEGRATION.md` for driver prerequisites and environment
+variable overrides.
 
 ## 4. Configuration and data hygiene gate
 
@@ -70,11 +76,14 @@ Before tagging a release:
   access to configured hosts.
 - If Parquet support is advertised, install `.[parquet]` and confirm the
   optional Parquet engine metadata is included in the notice review.
+- Review `docs/SECURITY_PERFORMANCE.md` when changing query rendering,
+  identifier validation, concurrency, chunking, or export behavior.
 
 ## 6. Version and tag policy
 
 - Keep `pyproject.toml` `project.version` and `oznak.__version__` synchronized.
-- Tag releases as `vX.Y.Z`, matching the package version exactly.
+- Tag final releases as `vX.Y.Z` and prereleases as `vX.Y.ZrcN`, matching the
+  package version exactly.
 - Do not publish a tag while generated artifacts, local credentials, or
   production-derived exports are present in the working tree.
 - Prefer a pinned Git commit for downstream smoke validation before creating a

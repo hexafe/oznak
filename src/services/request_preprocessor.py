@@ -1,6 +1,9 @@
 from typing import Any
 
+from src._legacy import warn_legacy_module
 from src.services.filter_parser import normalize_columns, normalize_databases, parse_filters
+
+warn_legacy_module("src.services.request_preprocessor", "oznak.request.QueryRequest")
 
 
 def preprocess_fetch_request(

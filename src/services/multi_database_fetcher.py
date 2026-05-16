@@ -1,10 +1,15 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
+
+import pandas as pd
+
+from src._legacy import warn_legacy_module
 from src.db.manager import DBManager
 from src.query.builder import build_query
 from src.query.fetcher import fetch_data, fetch_data_chunked
-import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import os
 from src.storage.exporter import export_chunks_streaming
+
+warn_legacy_module("src.services.multi_database_fetcher", "oznak.fetcher and oznak.chunked")
 
 
 def _fetch_single_database(database, filters, limit, date_column, columns, db_manager_instance, order_by_enabled=True):

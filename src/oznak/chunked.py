@@ -9,6 +9,7 @@ from time import perf_counter
 from typing import Any, Callable
 
 import pandas as pd
+from sqlalchemy import text
 
 from oznak.credentials import CredentialProvider, Credentials
 from oznak.diagnostics import SourceFetchDiagnostics, SourceFetchStatus
@@ -113,7 +114,7 @@ def iter_records_chunked(
         raise OznakValidationError("chunk_size must be a positive integer")
 
     resolved_engine_factory: EngineFactory = engine_factory or _default_engine_factory
-    resolved_read_sql: ReadSqlCallable = read_sql or pd.read_sql
+    resolved_read_sql: ReadSqlCallable = read_sql or _default_read_sql
     worker_count = _normalize_max_workers(max_workers)
     queue_size = _normalize_max_pending_events(max_pending_events)
 
@@ -382,6 +383,13 @@ def _iter_single_source_chunks(
 
 def _default_engine_factory(profile: DatabaseProfile, credentials: Credentials | None) -> Any:
     return create_sqlalchemy_engine(profile, credentials)
+
+
+def _default_read_sql(sql: str, engine: Any, params: dict[str, object] | None = None) -> pd.DataFrame:
+    statement = text(sql)
+    if params:
+        return pd.read_sql(statement, engine, params=params)
+    return pd.read_sql(statement, engine)
 
 
 def _resolve_order_by_enabled(request: FetchRequest, profile: DatabaseProfile) -> bool:

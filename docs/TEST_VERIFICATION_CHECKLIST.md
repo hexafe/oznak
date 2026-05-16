@@ -31,6 +31,14 @@ _Last updated: 2026-05-16_
   services are unavailable.
 - Run only when explicitly requested:
   `python -m pytest -q -m integration`
+- For disposable container validation, run:
+  `docker compose -f docker-compose.integration.yml up -d`
+- Then run:
+  `OZNAK_RUN_LIVE_DB_TESTS=1 python -m pytest -q -m integration`
+- Stop containers with:
+  `docker compose -f docker-compose.integration.yml down -v`
+- Expected result: MySQL live fetch/chunked checks pass. MSSQL passes when
+  Microsoft ODBC Driver 17 for SQL Server is installed, otherwise it is skipped.
 
 ## 3a. Optional Parquet verification
 
@@ -53,6 +61,7 @@ _Last updated: 2026-05-16_
   being released.
 - Confirm `pyproject.toml` version matches `oznak.__version__`.
 - Confirm release tags use `vX.Y.Z` and match the package version.
+- Confirm prerelease tags use `vX.Y.ZrcN` and match the package version.
 - Confirm MSSQL runtime notes mention Microsoft ODBC Driver 17 for SQL Server
   or a compatible `pyodbc` driver.
 - Confirm branch is clean before merge or push

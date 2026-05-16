@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from oznak.credentials import EnvironmentCredentialProvider
 from oznak.diagnostics import SourceFetchDiagnostics, SourceFetchStatus
@@ -66,6 +67,7 @@ def test_run_tui_fetches_and_exports_csv(monkeypatch, tmp_path) -> None:
             "5",
             "updated_at",
             "",
+            "2.5",
             str(out_path),
             "y",
         ]
@@ -85,6 +87,7 @@ def test_run_tui_fetches_and_exports_csv(monkeypatch, tmp_path) -> None:
         assert request.limit == 5
         assert request.date_column == "updated_at"
         assert request.order_by_enabled is True
+        assert request.timeout_seconds == 2.5
         assert len(request.filters) == 1
         assert request.filters[0].column == "status"
         assert request.filters[0].operator.value == "="
@@ -137,6 +140,7 @@ def test_run_tui_aborts_before_fetch(monkeypatch, tmp_path) -> None:
             "",
             "",
             "",
+            "",
             "output.csv",
             "n",
         ]
@@ -174,6 +178,7 @@ def test_run_tui_can_disable_server_order_by(monkeypatch, tmp_path) -> None:
             "5",
             "updated_at",
             "n",
+            "",
             str(out_path),
             "y",
         ]
@@ -217,6 +222,7 @@ def test_run_tui_uses_named_export_profile_when_available(monkeypatch, tmp_path)
     answers = iter(
         [
             "db_a",
+            "",
             "",
             "",
             "",
@@ -271,6 +277,7 @@ def test_run_tui_prints_failure_summary_before_fetch_error(monkeypatch, tmp_path
             "",
             "",
             "",
+            "",
             "output.csv",
             "y",
         ]
@@ -309,3 +316,106 @@ def test_run_tui_prints_failure_summary_before_fetch_error(monkeypatch, tmp_path
     assert "Fetch summary: sources=1 rows=0 failed=1" in messages
     assert "  db_a: failed rows=0 code=query_error query failed" in messages
     assert "Fetch error: Source 'db_a' query failed" in messages
+
+
+@pytest.mark.parametrize(
+    ("status", "error_code", "expected_message"),
+    [
+        (SourceFetchStatus.TIMEOUT, "execute_timeout", "Fetch timeout: Source 'db_a' timed out"),
+        (SourceFetchStatus.CANCELLED, "execute_cancelled", "Fetch cancelled: Source 'db_a' cancelled"),
+    ],
+)
+def test_run_tui_labels_timeout_and_cancelled_results(
+    monkeypatch,
+    tmp_path,
+    status,
+    error_code,
+    expected_message,
+) -> None:
+    config_path = tmp_path / "databases.yaml"
+    _write_config(config_path)
+
+    answers = iter(
+        [
+            "db_a",
+            "",
+            "",
+            "",
+            "",
+            "output.csv",
+            "y",
+        ]
+    )
+    messages: list[str] = []
+
+    error_message = expected_message.split(": ", 1)[1]
+
+    def fake_fetch_records(
+        request,
+        credential_provider=None,
+        cancellation_token=None,
+        progress_callback=None,
+        **kwargs,
+    ):
+        return FetchResult(
+            source_results=(
+                SourceFetchDiagnostics(
+                    source_alias="db_a",
+                    status=status,
+                    row_count=0,
+                    error_code=error_code,
+                    message=error_message,
+                ),
+            ),
+            errors=(error_message,),
+        )
+
+    monkeypatch.setattr("oznak.tui.fetch_records", fake_fetch_records)
+
+    exit_code = run_tui(
+        config_path=str(config_path),
+        prompt=lambda _question: next(answers),
+        output=messages.append,
+    )
+
+    assert exit_code == 1
+    assert expected_message in messages
+
+
+def test_run_tui_reports_keyboard_interrupt_as_user_cancel(monkeypatch, tmp_path) -> None:
+    config_path = tmp_path / "databases.yaml"
+    _write_config(config_path)
+
+    answers = iter(
+        [
+            "db_a",
+            "",
+            "",
+            "",
+            "",
+            "output.csv",
+            "y",
+        ]
+    )
+    messages: list[str] = []
+
+    def fake_fetch_records(
+        request,
+        credential_provider=None,
+        cancellation_token=None,
+        progress_callback=None,
+        **kwargs,
+    ):
+        assert isinstance(cancellation_token, CancellationToken)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("oznak.tui.fetch_records", fake_fetch_records)
+
+    exit_code = run_tui(
+        config_path=str(config_path),
+        prompt=lambda _question: next(answers),
+        output=messages.append,
+    )
+
+    assert exit_code == 1
+    assert "Cancelled by user before fetch completed" in messages

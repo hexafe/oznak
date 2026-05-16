@@ -3,7 +3,10 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import text
 
+from src._legacy import warn_legacy_module
 from src.query.builder import build_chunked_query
+
+warn_legacy_module("src.query.fetcher", "oznak.fetcher and oznak.chunked")
 
 
 def fetch_data(engine: Any, query: str, params: dict[str, Any] | None = None) -> pd.DataFrame:

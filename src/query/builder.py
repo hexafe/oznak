@@ -1,9 +1,12 @@
 import re
 from typing import Any
 
+from src._legacy import warn_legacy_module
 from oznak.filters import QueryFilter
 from oznak.profiles import DatabaseProfile, validate_identifier
 from oznak.query_builder import QuerySpec, compile_query
+
+warn_legacy_module("src.query.builder", "oznak.query_builder")
 
 
 def _quote_identifier(identifier: str, db_type: str) -> str:
