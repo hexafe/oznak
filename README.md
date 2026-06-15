@@ -7,7 +7,7 @@ Oznak is independent at runtime. Consumers should import `oznak.*`, not legacy `
 ## Current Status
 
 - Package namespace: `oznak`
-- Version: `0.2.0rc1`
+- Version: `0.2.0rc2`
 - Supported dialects: MySQL and MSSQL
 - Default tests use synthetic data only
 - Standalone surfaces: CLI and minimal prompt-based TUI
@@ -191,9 +191,10 @@ request = FetchRequest(
 )
 
 result = fetch_records(request, credential_provider=EnvironmentCredentialProvider())
+json_records = result.to_json_records()
 ```
 
-Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound arguments before creating `FetchRequest`. Use `fetch_records(..., max_workers=N)` for bounded parallel source fetches. Use `fetch_records_chunked(...)` for a deterministic `FetchResult`, or `iter_records_chunked(..., max_workers=N)` when a caller wants to stream ready chunk frames to an exporter through a bounded queue. Use `run_synthetic_chunked_benchmark(...)` when a machine has no database access but still needs to verify chunk orchestration and export overhead.
+Use `QueryRequest.from_inputs(...)` to normalize CLI/API/TUI-style inbound arguments before creating `FetchRequest`. Use `fetch_records(..., max_workers=N)` for bounded parallel source fetches. `FetchResult.data` remains the original pandas DataFrame; use `FetchResult.to_json_records()` when returning records through JSON APIs. Use `fetch_records_chunked(...)` for a deterministic `FetchResult`, or `iter_records_chunked(..., max_workers=N)` when a caller wants to stream ready chunk frames to an exporter through a bounded queue. Use `run_synthetic_chunked_benchmark(...)` when a machine has no database access but still needs to verify chunk orchestration and export overhead.
 
 ## Safety Notes
 

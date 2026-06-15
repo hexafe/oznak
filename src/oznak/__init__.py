@@ -27,7 +27,7 @@ from oznak.request import QueryRequest
 from oznak.result import FetchRequest, FetchResult
 from oznak.runtime import CancellationToken
 
-__version__ = "0.2.0rc1"
+__version__ = "0.2.0rc2"
 
 __all__ = [
     "CompiledQuery",

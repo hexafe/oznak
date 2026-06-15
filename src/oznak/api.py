@@ -111,7 +111,7 @@ def fetch(
             }
             for diagnostic in result.source_results
         ],
-        "data": result.data.to_dict(orient="records"),
+        "data": result.to_json_records(),
     }
 
 

@@ -1,3 +1,6 @@
+import json
+
+import pandas as pd
 import pytest
 
 from oznak.credentials import Credentials, EnvironmentCredentialProvider, MappingCredentialProvider
@@ -171,3 +174,33 @@ def test_fetch_result_distinguishes_partial_success():
     assert result.row_count == 3
     assert result.has_errors is True
     assert result.partial_success is True
+
+
+def test_fetch_result_json_records_normalize_timestamp_scalars_without_mutating_data():
+    data = pd.DataFrame(
+        [
+            {
+                "reference": "REF-1",
+                "created_at": pd.Timestamp("2026-06-15T12:00:00"),
+                "missing": pd.NaT,
+                "score": float("nan"),
+            }
+        ]
+    )
+    result = FetchResult(
+        data=data,
+        source_results=(SourceFetchDiagnostics("assembly", SourceFetchStatus.SUCCESS, row_count=1),),
+    )
+
+    records = result.to_json_records()
+
+    assert records == [
+        {
+            "reference": "REF-1",
+            "created_at": "2026-06-15T12:00:00.000",
+            "missing": None,
+            "score": None,
+        }
+    ]
+    assert isinstance(result.data.loc[0, "created_at"], pd.Timestamp)
+    json.dumps(records)

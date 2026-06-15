@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0rc2] - 2026-06-15
+
+### Fixed
+- Added `FetchResult.to_json_records()` and routed the FastAPI fetch response
+  through it so pandas timestamp and missing-value scalars are JSON-safe while
+  `FetchResult.data` remains the original DataFrame for library consumers.
+
 ## [0.2.0rc1] - 2026-05-16
 
 ### Added

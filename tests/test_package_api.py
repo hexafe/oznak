@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 import pytest
 from fastapi import HTTPException
@@ -40,7 +42,16 @@ def test_package_api_fetch_uses_package_contracts(monkeypatch):
         captured["order_by_enabled"] = request.order_by_enabled
         assert credential_provider is not None
         return FetchResult(
-            data=pd.DataFrame([{"RefName": "A1", "Status": "ACTIVE"}]),
+            data=pd.DataFrame(
+                [
+                    {
+                        "RefName": "A1",
+                        "Status": "ACTIVE",
+                        "CreatedAt": pd.Timestamp("2026-06-15T12:00:00"),
+                        "ClearedAt": pd.NaT,
+                    }
+                ]
+            ),
             source_results=(
                 SourceFetchDiagnostics(
                     source_alias="db_a",
@@ -65,8 +76,16 @@ def test_package_api_fetch_uses_package_contracts(monkeypatch):
     assert response == {
         "rows": 1,
         "sources": [{"alias": "db_a", "status": "success", "row_count": 1}],
-        "data": [{"RefName": "A1", "Status": "ACTIVE"}],
+        "data": [
+            {
+                "RefName": "A1",
+                "Status": "ACTIVE",
+                "CreatedAt": "2026-06-15T12:00:00.000",
+                "ClearedAt": None,
+            }
+        ],
     }
+    json.dumps(response)
     assert captured == {
         "aliases": ["db_a"],
         "filters": [("Status", "=", "ACTIVE")],
